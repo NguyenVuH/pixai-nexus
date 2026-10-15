@@ -25,7 +25,7 @@ public class AccountStorage {
     private static final String KEY_KILL_SWITCH = "kill_switch_enabled";
 
     private static final String ACCOUNTS_FILE = "accounts_nexus.json";
-    private static final String HISTORY_FILE = "nexus_history.json";
+    private static final String HISTORY_FILE = "nexus_history.enc";
 
     private final Context context;
     private final SharedPreferences prefs;
@@ -130,7 +130,6 @@ public class AccountStorage {
         return null;
     }
 
-    private static final String HISTORY_FILE = "nexus_history.enc";
     private static final byte[] CIPHER_KEY = "PixAi_Nexus_Security_Master_Key_2026_Secure".getBytes(StandardCharsets.UTF_8);
 
     private static byte[] cipherBytes(byte[] data) {
