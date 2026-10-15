@@ -103,6 +103,7 @@ public class PixAiApiHelper {
                     sb.append(line);
                 }
             }
+        }
         return new JSONObject(sb.toString().trim());
     }
 
