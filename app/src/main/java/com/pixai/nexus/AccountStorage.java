@@ -199,4 +199,46 @@ public class AccountStorage {
     public void setKillSwitchEnabled(boolean enabled) {
         prefs.edit().putBoolean(KEY_KILL_SWITCH, enabled).apply();
     }
+
+    public boolean isProxyWebUiEnabled() {
+        return prefs.getBoolean("proxy_web_ui", true);
+    }
+
+    public boolean isAutoRotateProxyEnabled() {
+        return prefs.getBoolean("auto_rotate_proxy", true);
+    }
+
+    public List<String> getParsedProxyPool() {
+        List<String> list = new ArrayList<>();
+        list.add(getProxyAddress());
+        return list;
+    }
+
+    public boolean isDohEnabled() {
+        return prefs.getBoolean("doh_enabled", true);
+    }
+
+    public boolean isAntiDpiEnabled() {
+        return prefs.getBoolean("anti_dpi_enabled", false);
+    }
+
+    public boolean isStrictKillSwitchEnabled() {
+        return isKillSwitchEnabled();
+    }
+
+    public boolean isBlockWebRtcEnabled() {
+        return prefs.getBoolean("block_webrtc", true);
+    }
+
+    public boolean isSpoofFingerprintEnabled() {
+        return prefs.getBoolean("spoof_fingerprint", true);
+    }
+
+    public boolean isBlockTrackersEnabled() {
+        return prefs.getBoolean("block_trackers", true);
+    }
+
+    public int getFingerprintSeed() {
+        return prefs.getInt("fingerprint_seed", 12345);
+    }
 }
