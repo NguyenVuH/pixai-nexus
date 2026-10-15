@@ -6,6 +6,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -749,7 +750,7 @@ public class MainActivity extends AppCompatActivity {
         if (active != null && active.getCredits() < cost && storage.isAutoRotateAccounts()) {
             AccountModel eligible = storage.findEligibleAccount(cost);
             if (eligible != null && !eligible.getId().equals(active.getId())) {
-                storage.setActiveAccount(eligible.getId());
+                storage.setActiveEmail(eligible.getEmail());
                 refreshHeader();
                 logMessage("Tự động xoay sang tài khoản " + eligible.getEmail() + " có " + eligible.getCredits() + " CR (đủ cho chi phí " + cost + " CR).");
                 active = eligible;
