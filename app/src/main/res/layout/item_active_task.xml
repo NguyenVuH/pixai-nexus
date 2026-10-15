@@ -20,6 +20,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:singleLine="true"
             android:text="Task #2067... • FLASH • 768x1280"
             android:textColor="#FFFFFF"
             android:textSize="12sp"
@@ -29,6 +30,7 @@
             android:id="@+id/tvTaskStatusBadge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:singleLine="true"
             android:text="Đang chờ GPU PixAI..."
             android:textColor="#FFA726"
             android:textSize="11sp"
@@ -71,7 +73,7 @@
             android:layout_width="60dp"
             android:layout_height="60dp"
             android:layout_marginEnd="10dp"
-            android:background="#262626"
+            android:background="#161616"
             android:scaleType="centerCrop" />
 
         <LinearLayout
@@ -83,27 +85,30 @@
             <Button
                 android:id="@+id/btnTaskZoom"
                 android:layout_width="match_parent"
-                android:layout_height="32dp"
-                android:background="@drawable/bg_cyber_btn_primary"
+                android:layout_height="34dp"
+                android:background="@drawable/bg_cyber_chip_normal"
+                android:gravity="center"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
+                android:singleLine="true"
                 android:text="Xem Phóng To"
                 android:textAllCaps="false"
-                android:textColor="#121212"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
 
             <Button
                 android:id="@+id/btnTaskApply"
                 android:layout_width="match_parent"
-                android:layout_height="30dp"
+                android:layout_height="34dp"
                 android:layout_marginTop="4dp"
                 android:background="@drawable/bg_cyber_btn_secondary"
+                android:gravity="center"
                 android:minWidth="0dp"
                 android:minHeight="0dp"
+                android:singleLine="true"
                 android:text="Đưa Lên Màn Chính"
                 android:textAllCaps="false"
-                android:textColor="#E0E0E0"
+                android:textColor="#81C784"
                 android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>

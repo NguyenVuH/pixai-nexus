@@ -612,66 +612,68 @@ class PixAiNexusStudio(tk.Tk):
         self.lbl_cost_badge = tk.Label(grp_action, text="Chi phí: 1,900 CR | Đang kiểm tra tài khoản khả dụng...", bg=self.c_bg, fg=self.c_success, font=("Segoe UI", 10, "bold"))
         self.lbl_cost_badge.pack(anchor="w")
 
-        self.btn_generate = tk.Button(grp_action, text="KHỞI TẠO ẢNH NGAY", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", activeforeground="#000000", relief="solid", bd=1, pady=10, font=("Segoe UI", 11, "bold"), command=self.on_start_generate)
+        self.btn_generate = tk.Button(grp_action, text="KHỞI TẠO ẢNH NGAY", bg="#242424", fg="#FFFFFF", activebackground="#333333", activeforeground="#FFFFFF", relief="solid", bd=1, pady=10, font=("Segoe UI", 11, "bold"), command=self.on_start_generate)
         self.btn_generate.pack(fill="x", pady=(6, 4))
 
         self.progress_bar = ttk.Progressbar(grp_action, orient="horizontal", mode="indeterminate")
         self.lbl_gen_step = tk.Label(grp_action, text="Sẵn sàng khởi tạo.", bg=self.c_bg, fg=self.c_muted, font=("Segoe UI", 9))
         self.lbl_gen_step.pack(anchor="w")
 
-        # Active Tasks Queue (Old tasks on top, new tasks below)
+        # Active Tasks Queue (Newest tasks on top)
         self.grp_queue = tk.LabelFrame(scrollable_frame, text=" Tiến Trình Tạo Ảnh Đang Chạy ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=8, pady=6)
         self.grp_queue.pack(fill="x", pady=(8, 4))
         self.queue_container = tk.Frame(self.grp_queue, bg=self.c_card)
         self.queue_container.pack(fill="x")
         self.grp_queue.pack_forget()
 
-        # ================= CỘT PHẢI: KHU VỰC PREVIEW ẢNH & CAROUSEL =================
+        # ================= CỘT PHẢI: KHU VỰC PREVIEW ẢNH (DANH SÁCH TỪNG ẢNH ĐỘC LẬP) =================
         right_pane = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
         right_pane.pack(side="right", fill="both", expand=True)
 
         top_prev_bar = tk.Frame(right_pane, bg=self.c_card, padx=12, pady=8)
         top_prev_bar.pack(fill="x")
 
-        tk.Label(top_prev_bar, text="KẾT QUẢ KHỞI TẠO", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 10, "bold")).pack(side="left")
+        tk.Label(top_prev_bar, text="KẾT QUẢ KHỞI TẠO ẢNH", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 10, "bold")).pack(side="left")
+        self.lbl_result_status = tk.Label(top_prev_bar, text="Chưa có ảnh được tạo", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8))
+        self.lbl_result_status.pack(side="right")
 
-        self.btn_download_cur = tk.Button(top_prev_bar, text="Lưu Vào Máy", bg=self.c_input, fg=self.c_success, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=self.download_current_image)
-        self.btn_download_cur.pack(side="right")
-        self.btn_download_cur.config(state="disabled")
+        # Scrollable Feed Container for Images
+        feed_container = tk.Frame(right_pane, bg=self.c_card)
+        feed_container.pack(fill="both", expand=True, padx=8, pady=(0, 6))
 
-        self.btn_zoom_cur = tk.Button(top_prev_bar, text="Phóng To Toàn Màn Hình", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.zoom_current_image)
-        self.btn_zoom_cur.pack(side="right", padx=(0, 6))
-        self.btn_zoom_cur.config(state="disabled")
+        self.feed_canvas = tk.Canvas(feed_container, bg=self.c_bg, highlightthickness=0)
+        self.feed_scrollbar = ttk.Scrollbar(feed_container, orient="vertical", command=self.feed_canvas.yview)
+        self.feed_inner_frame = tk.Frame(self.feed_canvas, bg=self.c_bg)
 
-        # Carousel Bar
-        self.frame_carousel = tk.Frame(right_pane, bg=self.c_card, pady=4)
-        self.frame_carousel.pack(fill="x")
+        self.feed_inner_frame.bind("<Configure>", lambda e: self.feed_canvas.configure(scrollregion=self.feed_canvas.bbox("all")))
+        self.feed_window = self.feed_canvas.create_window((0, 0), window=self.feed_inner_frame, anchor="nw")
+        self.feed_canvas.bind("<Configure>", lambda e: self.feed_canvas.itemconfig(self.feed_window, width=e.width))
 
-        self.btn_prev_img = tk.Button(self.frame_carousel, text="Ảnh Trước", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.on_prev_image)
-        self.btn_prev_img.pack(side="left", padx=12)
-
-        self.lbl_carousel_idx = tk.Label(self.frame_carousel, text="Ảnh 1 / 1", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"))
-        self.lbl_carousel_idx.pack(side="left", expand=True)
-
-        self.btn_next_img = tk.Button(self.frame_carousel, text="Ảnh Tiếp", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.on_next_image)
-        self.btn_next_img.pack(side="right", padx=12)
-        self.frame_carousel.pack_forget()
-
-        # Canvas Preview
-        self.preview_canvas = tk.Canvas(right_pane, bg="#0E0E0E", highlightthickness=0)
-        self.preview_canvas.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+        self.feed_canvas.configure(yscrollcommand=self.feed_scrollbar.set)
+        self.feed_scrollbar.pack(side="right", fill="y")
+        self.feed_canvas.pack(side="left", fill="both", expand=True)
 
         # Bottom info: Prompts
         bot_info = tk.Frame(right_pane, bg=self.c_card, padx=12, pady=6)
         bot_info.pack(fill="x", side="bottom")
 
-        tk.Label(bot_info, text="Prompt Server Sửa Đổi:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
-        self.lbl_server_prompt = tk.Label(bot_info, text="Chưa có", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 8), wraplength=550, justify="left", anchor="w")
-        self.lbl_server_prompt.pack(fill="x", pady=(0, 4))
+        row_sp = tk.Frame(bot_info, bg=self.c_card)
+        row_sp.pack(fill="x")
+        tk.Label(row_sp, text="Prompt Server Tối Ưu:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(side="left")
+        btn_copy_sp = tk.Button(row_sp, text="Sao Chép", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=6, pady=1, font=("Segoe UI", 7), command=self.copy_server_prompt)
+        btn_copy_sp.pack(side="right")
 
-        tk.Label(bot_info, text="Prompt Gốc:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
+        self.lbl_server_prompt = tk.Label(bot_info, text="Chưa có", bg=self.c_card, fg=self.c_success, font=("Segoe UI", 8), wraplength=550, justify="left", anchor="w")
+        self.lbl_server_prompt.pack(fill="x", pady=(2, 4))
+
+        row_op = tk.Frame(bot_info, bg=self.c_card)
+        row_op.pack(fill="x")
+        tk.Label(row_op, text="Prompt Gốc:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(side="left")
+        btn_copy_op = tk.Button(row_op, text="Sao Chép", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=6, pady=1, font=("Segoe UI", 7), command=self.copy_orig_prompt)
+        btn_copy_op.pack(side="right")
+
         self.lbl_orig_prompt = tk.Label(bot_info, text="Chưa có", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 8), wraplength=550, justify="left", anchor="w")
-        self.lbl_orig_prompt.pack(fill="x")
+        self.lbl_orig_prompt.pack(fill="x", pady=(2, 0))
 
     # ================= TAB 2: QUẢN LÝ TÀI KHOẢN =================
     def build_accounts_tab(self):
@@ -693,7 +695,7 @@ class PixAiNexusStudio(tk.Tk):
         btn_add = tk.Button(row_add, text="Thêm Token Này", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9), command=self.on_add_account_token)
         btn_add.pack(side="left", padx=(0, 6))
 
-        self.btn_auto_reg = tk.Button(row_add, text="Tự Đăng Ký Acc Mới", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=self.on_auto_register_account)
+        self.btn_auto_reg = tk.Button(row_add, text="Tự Đăng Ký Acc Mới", bg="#242424", fg="#FFFFFF", activebackground="#303030", activeforeground="#FFFFFF", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=self.on_auto_register_account)
         self.btn_auto_reg.pack(side="left")
 
         # Hàng Import / Export hàng loạt
@@ -772,7 +774,7 @@ class PixAiNexusStudio(tk.Tk):
         self.ent_hist_pin.pack(pady=(0, 12))
         self.ent_hist_pin.bind("<Return>", lambda e: self.on_unlock_history())
 
-        btn_unlock = tk.Button(self.frame_hist_locked, text="MỞ KHÓA LỊCH SỬ", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", relief="solid", bd=1, padx=16, pady=6, font=("Segoe UI", 9, "bold"), command=self.on_unlock_history)
+        btn_unlock = tk.Button(self.frame_hist_locked, text="MỞ KHÓA LỊCH SỬ", bg="#242424", fg="#FFFFFF", activebackground="#303030", activeforeground="#FFFFFF", relief="solid", bd=1, padx=16, pady=6, font=("Segoe UI", 9, "bold"), command=self.on_unlock_history)
         btn_unlock.pack()
 
         # View nội dung lịch sử
@@ -840,7 +842,7 @@ class PixAiNexusStudio(tk.Tk):
         row_sec_btns = tk.Frame(card_sec, bg=self.c_card)
         row_sec_btns.pack(fill="x", pady=(10, 0))
 
-        btn_save_sec = tk.Button(row_sec_btns, text="LƯU CẤU HÌNH", bg="#E0E0E0", fg="#0A0A0A", relief="solid", bd=1, padx=14, pady=5, font=("Segoe UI", 9, "bold"), command=self.on_save_security_config)
+        btn_save_sec = tk.Button(row_sec_btns, text="LƯU CẤU HÌNH", bg="#242424", fg="#FFFFFF", activebackground="#303030", activeforeground="#FFFFFF", relief="solid", bd=1, padx=14, pady=5, font=("Segoe UI", 9, "bold"), command=self.on_save_security_config)
         btn_save_sec.pack(side="left", padx=(0, 8))
 
         btn_test_proxy = tk.Button(row_sec_btns, text="Kiểm Tra Proxy", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_test_proxy)
@@ -1269,7 +1271,11 @@ class PixAiNexusStudio(tk.Tk):
 
         task_id = hist_item["id"]
         card = tk.Frame(self.queue_container, bg=self.c_card, bd=1, relief="solid", padx=8, pady=6)
-        card.pack(fill="x", pady=2) # Tự động nối vào cuối để cũ ở trên, mới ở dưới
+        existing_tasks = self.queue_container.winfo_children()
+        if existing_tasks:
+            card.pack(fill="x", pady=2, before=existing_tasks[0])
+        else:
+            card.pack(fill="x", pady=2)
 
         top_f = tk.Frame(card, bg=self.c_card)
         top_f.pack(fill="x")
@@ -1369,75 +1375,93 @@ class PixAiNexusStudio(tk.Tk):
 
         if urls:
             first_url = urls[0]
-            btn_view = tk.Button(act_f, text="Xem Toàn Màn Hình", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=6, pady=2, font=("Segoe UI", 8), command=lambda u=first_url: self.open_zoom_window(u))
+            btn_view = tk.Button(act_f, text="Phóng To", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=6, pady=2, font=("Segoe UI", 8), command=lambda u=first_url: self.open_zoom_modal(u))
             btn_view.pack(side="left")
 
             btn_apply = tk.Button(act_f, text="Đưa Lên Màn Chính", bg=self.c_input, fg=self.c_success, relief="solid", bd=1, padx=6, pady=2, font=("Segoe UI", 8, "bold"), command=lambda: self.apply_task_to_preview(hist_item))
             btn_apply.pack(side="left", padx=(4, 0))
 
-            # Tự động nạp vào màn hình preview chính nếu chưa có ảnh
-            self.apply_task_to_preview(hist_item)
+            # Tự động hiển thị danh sách ảnh mới nhất lên đầu feed chính
+            self.display_batch_images_in_feed(urls, hist_item.get("originalPrompt", ""), server_prompt)
 
         self.log_message(f"Task #{hist_item['id']} hoàn thành 100%! Đã nhận {len(urls)} ảnh.", "info")
 
     def apply_task_to_preview(self, hist_item):
-        self.last_original_prompt = hist_item["originalPrompt"]
-        self.last_server_prompt = hist_item["serverPrompt"]
+        self.last_original_prompt = hist_item.get("originalPrompt", "")
+        self.last_server_prompt = hist_item.get("serverPrompt", "")
         self.lbl_orig_prompt.config(text=self.last_original_prompt)
         self.lbl_server_prompt.config(text=self.last_server_prompt)
-        self.generated_images = hist_item.get("imageUrls", [])
-        self.current_image_idx = 0
-        if self.generated_images:
-            self.load_image_to_preview(self.generated_images[0])
-            self.update_carousel_controls()
+        urls = hist_item.get("imageUrls", [])
+        if not urls and hist_item.get("imageUrl"):
+            urls = [hist_item["imageUrl"]]
+        if urls:
+            self.display_batch_images_in_feed(urls, self.last_original_prompt, self.last_server_prompt)
         self.is_generating = False
         self.progress_bar.stop()
         self.progress_bar.pack_forget()
         self.btn_generate.config(state="normal")
-        self.lbl_gen_step.config(text="Bước 4/4: Khởi tạo hoàn tất 100%! Tác vụ thành công.", fg=self.c_success)
+        self.lbl_gen_step.config(text="Khởi tạo hoàn tất 100%! Tác vụ thành công.", fg=self.c_success)
 
-        account["credits"] = max(0, account.get("credits", 0) - cost)
-        self.save_accounts()
-        self.update_header()
-        self.update_live_cost()
+    def display_batch_images_in_feed(self, urls, orig_prompt="", server_prompt=""):
+        if not urls:
+            return
+        if orig_prompt:
+            self.last_original_prompt = orig_prompt
+            self.lbl_orig_prompt.config(text=orig_prompt)
+        if server_prompt:
+            self.last_server_prompt = server_prompt
+            self.lbl_server_prompt.config(text=server_prompt)
 
-        self.last_original_prompt = orig_prompt
-        self.last_server_prompt = server_prompt
-        self.lbl_orig_prompt.config(text=orig_prompt)
-        self.lbl_server_prompt.config(text=server_prompt)
+        self.lbl_result_status.config(text=f"Đã nhận {len(urls)} ảnh")
 
-        self.generated_images = urls
-        self.current_image_idx = 0
-
-        # Lưu vào lịch sử mã hóa
-        for u in urls:
-            hist_item = {
-                "id": f"hist_{int(time.time() * 1000)}_{random.randint(100, 999)}",
-                "timestamp": int(time.time() * 1000),
-                "imageUrl": u,
-                "originalPrompt": orig_prompt,
-                "serverPrompt": server_prompt,
-                "modelName": "Tsubaki 3",
-                "profile": profile,
-                "isReal": (self.current_style.get() == "real"),
-                "seed": seed,
-                "width": width,
-                "height": height
-            }
-            self.history.insert(0, hist_item)
-        save_encrypted_history(self.history)
-        self.refresh_history_table()
-
-        # Hiển thị Carousel & Preview
-        if len(urls) > 1:
-            self.frame_carousel.pack(fill="x", pady=4)
+        # Container cho batch này (batch mới sẽ pack trước existing children để nằm trên cùng)
+        batch_frame = tk.Frame(self.feed_inner_frame, bg=self.c_bg)
+        existing = self.feed_inner_frame.winfo_children()
+        if existing:
+            batch_frame.pack(fill="x", padx=4, pady=6, before=existing[0])
         else:
-            self.frame_carousel.pack_forget()
+            batch_frame.pack(fill="x", padx=4, pady=6)
 
-        self.btn_download_cur.config(state="normal")
-        self.btn_zoom_cur.config(state="normal")
-        self.show_current_preview_image()
-        self.log_message(f"Khởi tạo thành công {len(urls)} ảnh! Đã lưu vào kho lịch sử mã hóa.", "success")
+        for i, url in enumerate(urls):
+            card = tk.Frame(batch_frame, bg=self.c_card, bd=1, relief="solid", padx=10, pady=10)
+            card.pack(fill="x", pady=4)
+
+            # Header card
+            hdr = tk.Frame(card, bg=self.c_card)
+            hdr.pack(fill="x", pady=(0, 6))
+            tk.Label(hdr, text=f"Ảnh {i + 1} / {len(urls)}", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold")).pack(side="left")
+
+            # Image Label
+            lbl_img = tk.Label(card, text="Đang tải ảnh xem trước...", bg="#101010", fg=self.c_muted, height=12)
+            lbl_img.pack(fill="x", pady=(0, 8))
+
+            # Action buttons
+            btn_row = tk.Frame(card, bg=self.c_card)
+            btn_row.pack(fill="x")
+
+            btn_zoom = tk.Button(btn_row, text="Phóng To Chi Tiết", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9, "bold"), command=lambda u=url: self.open_zoom_modal(u))
+            btn_zoom.pack(side="left", padx=(0, 6))
+
+            btn_dl = tk.Button(btn_row, text="Lưu Vào Máy", bg=self.c_card_border, fg=self.c_success, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9, "bold"), command=lambda u=url, idx=i+1: self.download_single_image(u, idx))
+            btn_dl.pack(side="left")
+
+            threading.Thread(target=self._load_feed_image_worker, args=(url, lbl_img), daemon=True).start()
+
+    def _load_feed_image_worker(self, url, lbl_widget):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                data = resp.read()
+            pil_img = Image.open(__import__("io").BytesIO(data))
+            pil_img.thumbnail((520, 650), Image.Resampling.LANCZOS)
+            tk_photo = ImageTk.PhotoImage(pil_img)
+            self.after(0, lambda: self._apply_feed_image(lbl_widget, tk_photo))
+        except Exception:
+            self.after(0, lambda: lbl_widget.config(text="Không thể tải ảnh xem trước", fg=self.c_danger))
+
+    def _apply_feed_image(self, lbl_widget, tk_photo):
+        lbl_widget.config(image=tk_photo, text="", height=0)
+        lbl_widget.image = tk_photo
 
     def on_generation_failed(self, error_message):
         self.is_generating = False
@@ -1448,61 +1472,70 @@ class PixAiNexusStudio(tk.Tk):
         self.log_message(f"Tạo ảnh thất bại: {error_message}", "error")
         messagebox.showerror("Lỗi Khởi Tạo", error_message)
 
-    def show_current_preview_image(self):
-        if not self.generated_images:
-            return
-        idx = self.current_image_idx
-        self.lbl_carousel_idx.config(text=f"Ảnh {idx + 1} / {len(self.generated_images)}")
-        url = self.generated_images[idx]
+    def open_zoom_modal(self, url):
+        top = tk.Toplevel(self)
+        top.title("Phóng To Chi Tiết - PixAI Nexus")
+        top.geometry("960x920")
+        top.configure(bg="#0A0A0A")
 
-        threading.Thread(target=self._load_preview_canvas_worker, args=(url,), daemon=True).start()
+        # Top Bar
+        top_bar = tk.Frame(top, bg="#141414", bd=1, relief="solid", padx=14, pady=10)
+        top_bar.pack(fill="x")
 
-    def _load_preview_canvas_worker(self, url):
-        try:
-            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                data = resp.read()
-            pil_img = Image.open(io.BytesIO(data) if "io" in globals() else __import__("io").BytesIO(data))
-            
-            # Scale to fit canvas
-            cw = self.preview_canvas.winfo_width() or 600
-            ch = self.preview_canvas.winfo_height() or 500
-            pil_img.thumbnail((cw, ch), Image.Resampling.LANCZOS)
-            tk_img = ImageTk.PhotoImage(pil_img)
+        btn_close = tk.Button(top_bar, text="✕ Đóng", bg="#242424", fg="#FFFFFF", activebackground="#333333", activeforeground="#FFFFFF", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=top.destroy)
+        btn_close.pack(side="left")
 
-            self.after(0, lambda: self._render_preview_tk(tk_img))
-        except Exception:
-            pass
+        tk.Label(top_bar, text="PHÓNG TO CHI TIẾT", bg="#141414", fg="#FFFFFF", font=("Segoe UI", 10, "bold")).pack(side="left", padx=20)
 
-    def _render_preview_tk(self, tk_img):
-        self.preview_canvas.delete("all")
-        cw = self.preview_canvas.winfo_width() / 2
-        ch = self.preview_canvas.winfo_height() / 2
-        self.preview_canvas.image = tk_img
-        self.preview_canvas.create_image(cw, ch, image=tk_img, anchor="center")
+        btn_dl = tk.Button(top_bar, text="⬇ Lưu Máy", bg="#242424", fg="#FFFFFF", activebackground="#333333", activeforeground="#FFFFFF", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=lambda: self.download_single_image(url))
+        btn_dl.pack(side="right")
 
-    def on_prev_image(self):
-        if self.current_image_idx > 0:
-            self.current_image_idx -= 1
-            self.show_current_preview_image()
+        # Center area
+        center_f = tk.Frame(top, bg="#0A0A0A")
+        center_f.pack(fill="both", expand=True, padx=10, pady=10)
 
-    def on_next_image(self):
-        if self.current_image_idx < len(self.generated_images) - 1:
-            self.current_image_idx += 1
-            self.show_current_preview_image()
+        lbl_status = tk.Label(center_f, text="Đang tải ảnh độ phân giải cao...", bg="#0A0A0A", fg="#A0A0A0", font=("Segoe UI", 11))
+        lbl_status.pack(expand=True)
 
-    def download_current_image(self):
-        if not self.generated_images:
-            return
-        url = self.generated_images[self.current_image_idx]
-        fpath = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Image", "*.png")], initialfile=f"PixAI_Nexus_{int(time.time())}.png")
+        lbl_img = tk.Label(center_f, bg="#0A0A0A")
+
+        def _fetch_zoom():
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = resp.read()
+                pil_im = Image.open(__import__("io").BytesIO(data))
+                pil_im.thumbnail((920, 820), Image.Resampling.LANCZOS)
+                tk_photo = ImageTk.PhotoImage(pil_im)
+                
+                def _show():
+                    lbl_status.pack_forget()
+                    lbl_img.config(image=tk_photo)
+                    lbl_img.image = tk_photo
+                    lbl_img.pack(fill="both", expand=True)
+
+                self.after(0, _show)
+            except Exception as e:
+                self.after(0, lambda: lbl_status.config(text=f"Lỗi tải ảnh: {e}", fg="#FF5555"))
+
+        threading.Thread(target=_fetch_zoom, daemon=True).start()
+
+    def open_zoom_window(self, url):
+        self.open_zoom_modal(url)
+
+    def zoom_current_image(self):
+        if self.generated_images:
+            self.open_zoom_modal(self.generated_images[self.current_image_idx])
+
+    def download_single_image(self, url, idx=1):
+        fpath = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Image", "*.png")], initialfile=f"PixAI_Nexus_{int(time.time())}_{idx}.png")
         if not fpath:
             return
 
         def _dl():
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                with urllib.request.urlopen(req, timeout=30) as resp:
+                with urllib.request.urlopen(req, timeout=35) as resp:
                     with open(fpath, "wb") as f:
                         f.write(resp.read())
                 self.after(0, lambda: messagebox.showinfo("Thành công", f"Đã lưu ảnh thành công vào:\n{fpath}"))
@@ -1510,31 +1543,69 @@ class PixAiNexusStudio(tk.Tk):
                 self.after(0, lambda err=str(e): messagebox.showerror("Lỗi", f"Không thể lưu ảnh: {err}"))
         threading.Thread(target=_dl, daemon=True).start()
 
-    def zoom_current_image(self):
-        if not self.generated_images:
-            return
-        url = self.generated_images[self.current_image_idx]
+    def download_current_image(self):
+        if self.generated_images:
+            self.download_single_image(self.generated_images[self.current_image_idx])
+
+    def open_history_detail_window(self, hist_item, urls):
         top = tk.Toplevel(self)
-        top.title("Xem Ảnh Toàn Màn Hình - PixAI Nexus")
-        top.geometry("900x900")
-        top.configure(bg=self.c_bg)
+        top.title(f"Phiên Lịch Sử #{hist_item.get('id', '')[-8:]} - PixAI Nexus")
+        top.geometry("800x850")
+        top.configure(bg="#0A0A0A")
 
-        lbl = tk.Label(top, bg=self.c_bg)
-        lbl.pack(fill="both", expand=True)
+        top_bar = tk.Frame(top, bg="#141414", bd=1, relief="solid", padx=12, pady=10)
+        top_bar.pack(fill="x")
 
-        def _load():
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                with urllib.request.urlopen(req, timeout=25) as resp:
-                    data = resp.read()
-                im = Image.open(__import__("io").BytesIO(data))
-                im.thumbnail((880, 880), Image.Resampling.LANCZOS)
-                tk_im = ImageTk.PhotoImage(im)
-                self.after(0, lambda: lbl.config(image=tk_im))
-                lbl.image = tk_im
-            except Exception:
-                pass
-        threading.Thread(target=_load, daemon=True).start()
+        tk.Label(top_bar, text=f"LỊCH SỬ • {hist_item.get('profile', '').upper()} • {hist_item.get('width', '')}x{hist_item.get('height', '')}", bg="#141414", fg="#FFFFFF", font=("Segoe UI", 10, "bold")).pack(side="left")
+
+        btn_close = tk.Button(top_bar, text="✕ Đóng", bg="#242424", fg="#FFFFFF", relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 9), command=top.destroy)
+        btn_close.pack(side="right")
+
+        btn_load_main = tk.Button(top_bar, text="Nạp Vào Studio", bg="#242424", fg=self.c_success, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 9, "bold"), command=lambda: [self.apply_task_to_preview(hist_item), top.destroy()])
+        btn_load_main.pack(side="right", padx=(0, 8))
+
+        # Prompts info
+        p_frame = tk.Frame(top, bg="#141414", padx=12, pady=8)
+        p_frame.pack(fill="x", padx=10, pady=(8, 0))
+
+        tk.Label(p_frame, text="Prompt:", bg="#141414", fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
+        tk.Label(p_frame, text=hist_item.get("originalPrompt", ""), bg="#141414", fg="#FFFFFF", font=("Segoe UI", 8), wraplength=750, justify="left").pack(anchor="w", pady=(0, 4))
+
+        if hist_item.get("serverPrompt"):
+            tk.Label(p_frame, text="Server Prompt:", bg="#141414", fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
+            tk.Label(p_frame, text=hist_item.get("serverPrompt", ""), bg="#141414", fg=self.c_success, font=("Segoe UI", 8), wraplength=750, justify="left").pack(anchor="w")
+
+        # Scrollable image feed
+        feed_box = tk.Frame(top, bg="#0A0A0A")
+        feed_box.pack(fill="both", expand=True, padx=10, pady=8)
+
+        cv = tk.Canvas(feed_box, bg="#0A0A0A", highlightthickness=0)
+        sb = ttk.Scrollbar(feed_box, orient="vertical", command=cv.yview)
+        inner = tk.Frame(cv, bg="#0A0A0A")
+        inner.bind("<Configure>", lambda e: cv.configure(scrollregion=cv.bbox("all")))
+        cv_win = cv.create_window((0, 0), window=inner, anchor="nw")
+        cv.bind("<Configure>", lambda e: cv.itemconfig(cv_win, width=e.width))
+        cv.configure(yscrollcommand=sb.set)
+        sb.pack(side="right", fill="y")
+        cv.pack(side="left", fill="both", expand=True)
+
+        for i, u in enumerate(urls):
+            c = tk.Frame(inner, bg="#141414", bd=1, relief="solid", padx=10, pady=10)
+            c.pack(fill="x", pady=6)
+
+            h_row = tk.Frame(c, bg="#141414")
+            h_row.pack(fill="x", pady=(0, 4))
+            tk.Label(h_row, text=f"Ảnh {i + 1} / {len(urls)}", bg="#141414", fg="#FFFFFF", font=("Segoe UI", 9, "bold")).pack(side="left")
+
+            l_img = tk.Label(c, text="Đang tải ảnh...", bg="#101010", fg=self.c_muted, height=10)
+            l_img.pack(fill="x", pady=(0, 6))
+
+            b_row = tk.Frame(c, bg="#141414")
+            b_row.pack(fill="x")
+            tk.Button(b_row, text="Phóng To", bg="#242424", fg="#FFFFFF", relief="solid", bd=1, padx=8, pady=3, font=("Segoe UI", 8, "bold"), command=lambda x=u: self.open_zoom_modal(x)).pack(side="left", padx=(0, 6))
+            tk.Button(b_row, text="Lưu Vào Máy", bg="#242424", fg=self.c_success, relief="solid", bd=1, padx=8, pady=3, font=("Segoe UI", 8, "bold"), command=lambda x=u, j=i+1: self.download_single_image(x, j)).pack(side="left")
+
+            threading.Thread(target=self._load_feed_image_worker, args=(u, l_img), daemon=True).start()
 
     # ================= QUẢN LÝ TÀI KHOẢN & AUTO-REG =================
     def on_add_account_token(self):
@@ -1755,7 +1826,7 @@ class PixAiNexusStudio(tk.Tk):
             self.on_sync_credits()
             messagebox.showinfo("Thành công", f"Đã nhập {count} tài khoản! Đang đồng bộ số dư...")
 
-        btn = tk.Button(top, text="Nhập Vào Danh Sách", bg="#E0E0E0", fg="#0A0A0A", relief="solid", bd=1, padx=16, pady=6, font=("Segoe UI", 9, "bold"), command=_do_import)
+        btn = tk.Button(top, text="Nhập Vào Danh Sách", bg="#242424", fg="#FFFFFF", activebackground="#303030", activeforeground="#FFFFFF", relief="solid", bd=1, padx=16, pady=6, font=("Segoe UI", 9, "bold"), command=_do_import)
         btn.pack(pady=(0, 12))
 
     def on_import_json_dialog(self):
@@ -1830,7 +1901,7 @@ class PixAiNexusStudio(tk.Tk):
                     top.destroy()
                     messagebox.showinfo("Thành công", "Đã kích hoạt mật khẩu bảo vệ kho lịch sử!")
 
-            tk.Button(top, text="Lưu Mật Khẩu", bg="#E0E0E0", fg="#0A0A0A", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=_save_pin).pack()
+            tk.Button(top, text="Lưu Mật Khẩu", bg="#242424", fg="#FFFFFF", activebackground="#303030", activeforeground="#FFFFFF", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=_save_pin).pack()
 
     def refresh_history_table(self):
         if not hasattr(self, "hist_tree"):
@@ -1848,29 +1919,11 @@ class PixAiNexusStudio(tk.Tk):
         idx = self.hist_tree.index(sel[0])
         if 0 <= idx < len(self.history):
             h = self.history[idx]
-            url = h.get("imageUrl")
-            if url:
-                top = tk.Toplevel(self)
-                top.title("Chi Tiết Phiên Lịch Sử - PixAI Nexus")
-                top.geometry("850x750")
-                top.configure(bg=self.c_bg)
-
-                lbl_im = tk.Label(top, bg=self.c_bg)
-                lbl_im.pack(fill="both", expand=True)
-
-                def _load():
-                    try:
-                        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                        with urllib.request.urlopen(req, timeout=25) as resp:
-                            data = resp.read()
-                        im = Image.open(__import__("io").BytesIO(data))
-                        im.thumbnail((800, 600), Image.Resampling.LANCZOS)
-                        tk_im = ImageTk.PhotoImage(im)
-                        self.after(0, lambda: lbl_im.config(image=tk_im))
-                        lbl_im.image = tk_im
-                    except Exception:
-                        pass
-                threading.Thread(target=_load, daemon=True).start()
+            urls = h.get("imageUrls", [])
+            if not urls and h.get("imageUrl"):
+                urls = [h["imageUrl"]]
+            if urls:
+                self.open_history_detail_window(h, urls)
 
     def on_clear_history(self):
         if messagebox.askyesno("Xác nhận", "Bạn có chắc chắn muốn xóa toàn bộ kho lịch sử mã hóa?"):

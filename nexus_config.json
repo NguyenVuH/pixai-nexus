@@ -3,5 +3,11 @@
   "proxy_address": "http://p.webshare.io:80",
   "auto_fallback_direct": true,
   "kill_switch": false,
-  "anti_fingerprint": true
+  "anti_fingerprint": true,
+  "auto_rotate_accounts": true,
+  "size_tier": "xl",
+  "ratio": "9:16",
+  "custom_w": 1024,
+  "custom_h": 1024,
+  "history_pin_hash": ""
 }

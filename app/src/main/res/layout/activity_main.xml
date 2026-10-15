@@ -1154,7 +1154,7 @@
                         android:background="@drawable/bg_cyber_btn_primary"
                         android:text="TẠO ẢNH NGAY"
                         android:textAllCaps="false"
-                        android:textColor="#121212"
+                        android:textColor="#FFFFFF"
                         android:textSize="14sp"
                         android:textStyle="bold" />
 
@@ -1204,88 +1204,60 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
-                    <!-- Carousel Bar -->
+                    <!-- Danh sách hiển thị từng ảnh riêng biệt (Không gộp chung) -->
+                    <LinearLayout
+                        android:id="@+id/containerResultFeed"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical" />
+
+                    <!-- Compatibility Carousel Bar (Hidden) -->
                     <LinearLayout
                         android:id="@+id/layoutCarouselBar"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="10dp"
-                        android:gravity="center"
-                        android:orientation="horizontal"
                         android:visibility="gone">
 
                         <Button
                             android:id="@+id/btnPrevImage"
                             android:layout_width="wrap_content"
-                            android:layout_height="34dp"
-                            android:background="@drawable/bg_cyber_btn_secondary"
-                            android:minWidth="0dp"
-                            android:paddingHorizontal="14dp"
-                            android:text="Ảnh Trước"
-                            android:textAllCaps="false"
-                            android:textColor="#E0E0E0"
-                            android:textSize="11sp" />
+                            android:layout_height="wrap_content"
+                            android:text="Prev" />
 
                         <TextView
                             android:id="@+id/tvCarouselIndicator"
-                            android:layout_width="0dp"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:gravity="center"
-                            android:text="Ảnh 1 / 4"
-                            android:textColor="#FFFFFF"
-                            android:textSize="12sp"
-                            android:textStyle="bold" />
+                            android:text="1/1" />
 
                         <Button
                             android:id="@+id/btnNextImage"
                             android:layout_width="wrap_content"
-                            android:layout_height="34dp"
-                            android:background="@drawable/bg_cyber_btn_secondary"
-                            android:minWidth="0dp"
-                            android:paddingHorizontal="14dp"
-                            android:text="Ảnh Tiếp"
-                            android:textAllCaps="false"
-                            android:textColor="#E0E0E0"
-                            android:textSize="11sp" />
+                            android:layout_height="wrap_content"
+                            android:text="Next" />
                     </LinearLayout>
 
+                    <!-- Compatibility Result Preview (Hidden) -->
                     <ImageView
                         android:id="@+id/ivResultPreview"
                         android:layout_width="match_parent"
-                        android:layout_height="340dp"
-                        android:background="#161616"
-                        android:scaleType="fitCenter" />
+                        android:layout_height="0dp"
+                        android:visibility="gone" />
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
+                        android:visibility="gone">
 
                         <Button
                             android:id="@+id/btnZoomImage"
-                            android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginEnd="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_btn_secondary"
-                            android:text="Phóng To Toàn Màn Hình"
-                            android:textAllCaps="false"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
 
                         <Button
                             android:id="@+id/btnDownloadImage"
-                            android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginStart="6dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_btn_secondary"
-                            android:text="Lưu Ảnh Vào Máy"
-                            android:textAllCaps="false"
-                            android:textColor="#81C784"
-                            android:textSize="11sp" />
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content" />
                     </LinearLayout>
 
                     <TextView
@@ -1457,7 +1429,7 @@
                         android:singleLine="true"
                         android:text="Tự Đăng Ký Acc Mới"
                         android:textAllCaps="false"
-                        android:textColor="#121212"
+                        android:textColor="#FFFFFF"
                         android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
@@ -1698,7 +1670,7 @@
                     android:background="@drawable/bg_cyber_btn_primary"
                     android:text="MỞ KHÓA LỊCH SỬ"
                     android:textAllCaps="false"
-                    android:textColor="#121212"
+                    android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:textStyle="bold" />
             </LinearLayout>
@@ -1826,7 +1798,7 @@
                             android:background="@drawable/bg_cyber_btn_primary"
                             android:text="LƯU CẤU HÌNH"
                             android:textAllCaps="false"
-                            android:textColor="#121212"
+                            android:textColor="#FFFFFF"
                             android:textSize="12sp"
                             android:textStyle="bold" />
 
