@@ -2,51 +2,169 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
     android:background="@drawable/bg_cyber_card"
-    android:orientation="horizontal"
-    android:padding="10dp">
+    android:orientation="vertical"
+    android:padding="12dp">
 
-    <ImageView
-        android:id="@+id/ivHistoryThumb"
-        android:layout_width="72dp"
-        android:layout_height="72dp"
-        android:layout_marginEnd="12dp"
-        android:background="#262626"
-        android:scaleType="centerCrop" />
-
+    <!-- Header Row (Always visible) -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:id="@+id/layoutItemHeader"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/ivHistoryThumb"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_marginEnd="12dp"
+            android:background="#1E1E1E"
+            android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvHistoryMeta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:singleLine="true"
+                android:text="Tsubaki 3 Flash • 1104 x 1824"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvHistoryPrompt"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:text="Prompt..."
+                android:textColor="#CCCCCC"
+                android:textSize="11sp" />
+
+            <TextView
+                android:id="@+id/tvHistoryDate"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="3dp"
+                android:text="2026-10-15 12:00:00"
+                android:textColor="#757575"
+                android:textSize="10sp" />
+        </LinearLayout>
 
         <TextView
-            android:id="@+id/tvHistoryMeta"
+            android:id="@+id/tvExpandIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="6dp"
+            android:text="▼"
+            android:textColor="#9E9E9E"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Expandable Detailed View -->
+    <LinearLayout
+        android:id="@+id/layoutExpandedDetails"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <!-- Multi-image thumbnails if batch=4 -->
+        <HorizontalScrollView
+            android:id="@+id/hsvHistoryBatchThumbs"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Tsubaki 3 Flash - 1104 x 1824"
-            android:textColor="#E0E0E0"
-            android:textSize="11sp"
-            android:textStyle="bold" />
+            android:layout_marginBottom="8dp"
+            android:visibility="gone">
+            <LinearLayout
+                android:id="@+id/layoutHistoryBatchContainer"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <!-- Prompt Gốc -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Prompt Gốc:"
+            android:textColor="#9E9E9E"
+            android:textSize="10sp" />
 
         <TextView
-            android:id="@+id/tvHistoryPrompt"
+            android:id="@+id/tvHistoryFullOriginalPrompt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:ellipsize="end"
-            android:maxLines="2"
-            android:text="Original prompt here..."
+            android:layout_marginBottom="6dp"
             android:textColor="#FFFFFF"
             android:textSize="11sp" />
 
+        <!-- Prompt Server Sửa -->
         <TextView
-            android:id="@+id/tvHistoryDate"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="2026-10-15 12:00:00"
+            android:text="Prompt Server Sửa:"
             android:textColor="#9E9E9E"
             android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/tvHistoryFullServerPrompt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:textColor="#81C784"
+            android:textSize="11sp" />
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnHistoryZoom"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_cyber_chip_normal"
+                android:text="Phóng To"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnHistoryDownload"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_marginEnd="4dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_cyber_chip_normal"
+                android:text="Tải Về Máy"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+
+            <Button
+                android:id="@+id/btnHistoryCopyPrompt"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_cyber_chip_normal"
+                android:text="Chép Prompt"
+                android:textAllCaps="false"
+                android:textColor="#FFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

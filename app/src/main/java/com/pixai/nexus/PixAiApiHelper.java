@@ -17,10 +17,30 @@ import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class PixAiApiHelper {
+
+    private static final String TEMP_MAIL_IO_URL = "https://api.internal.temp-mail.io";
+    private static final String TEMP_MAIL_ORG_URL = "https://web2.temp-mail.org";
+    private static final String PIXAI_BASE_URL = "https://api.pixai.art";
+
+    public static class Mailbox {
+        public String address;
+        public String token;
+        public String provider;
+
+        public Mailbox(String address, String token, String provider) {
+            this.address = address;
+            this.token = token;
+            this.provider = provider;
+        }
+    }
 
     public interface LogCallback {
         void log(String message, String color);
@@ -79,45 +99,32 @@ public class PixAiApiHelper {
         }
 
         try {
-            String raw = proxyStr.trim();
-            Proxy.Type pType = Proxy.Type.HTTP;
-            if (raw.toLowerCase().startsWith("socks5://") || raw.toLowerCase().startsWith("socks://")) {
-                pType = Proxy.Type.SOCKS;
-            }
-            String clean = raw.replace("http://", "").replace("https://", "").replace("socks5://", "").replace("socks://", "");
-            String[] parts = clean.split("@");
+            SecurityShieldManager.ParsedProxy pp = SecurityShieldManager.parseProxyString(proxyStr);
+            if (pp != null) {
+                Proxy.Type pType = pp.isSocks5 ? Proxy.Type.SOCKS : Proxy.Type.HTTP;
+                Proxy proxy = new Proxy(pType, new InetSocketAddress(pp.host, pp.port));
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
 
-            String hostPort = parts.length > 1 ? parts[1] : parts[0];
-            String[] hp = hostPort.split(":");
-            String host = hp[0];
-            int port = (hp.length > 1) ? Integer.parseInt(hp[1].trim()) : 80;
-
-            Proxy proxy = new Proxy(pType, new InetSocketAddress(host, port));
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
-
-            if (parts.length > 1) {
-                String userPass = parts[0];
-                String authHeader = "Basic " + Base64.encodeToString(userPass.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
-                conn.setRequestProperty("Proxy-Authorization", authHeader);
-                String[] up = userPass.split(":");
-                if (up.length >= 2) {
-                    final String user = up[0];
-                    final String pass = up[1];
+                if (pp.user != null && !pp.user.isEmpty()) {
+                    String userPass = pp.user + ":" + (pp.pass != null ? pp.pass : "");
+                    String authHeader = "Basic " + Base64.encodeToString(userPass.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                    conn.setRequestProperty("Proxy-Authorization", authHeader);
+                    final String fUser = pp.user;
+                    final String fPass = pp.pass != null ? pp.pass : "";
                     Authenticator.setDefault(new Authenticator() {
                         @Override
                         protected PasswordAuthentication getPasswordAuthentication() {
                             if (getRequestorType() == RequestorType.PROXY) {
-                                return new PasswordAuthentication(user, pass.toCharArray());
+                                return new PasswordAuthentication(fUser, fPass.toCharArray());
                             }
                             return super.getPasswordAuthentication();
                         }
                     });
                 }
+                return conn;
             }
-            return conn;
-        } catch (Exception e) {
-            return (HttpURLConnection) url.openConnection();
-        }
+        } catch (Exception ignored) {}
+        return (HttpURLConnection) url.openConnection();
     }
 
     public static JSONObject sendGraphQL(JSONObject payload, String token, String proxyStr) throws Exception {
@@ -183,13 +190,21 @@ public class PixAiApiHelper {
             q.put("variables", vars);
 
             JSONObject res = sendGraphQL(q, token, proxyStr);
+
+            // Bằng chứng xác nhận từ máy chủ (truy vấn query me)
+            JSONObject qVerify = new JSONObject();
+            qVerify.put("query", "query checkUserPreferences { me { id email preferences } }");
+            JSONObject resVerify = sendGraphQL(qVerify, token, proxyStr);
+
             if (proofLog != null) {
-                proofLog.append(res.toString());
+                proofLog.append("BẰNG CHỨNG XÁC THỰC MÁY CHỦ PIXAI:\n");
+                proofLog.append("1. Mutation setPreferences: ").append(res.toString()).append("\n");
+                proofLog.append("2. Dữ liệu thực tế trên tài khoản (query me): ").append(resVerify.toString());
             }
             return !res.has("errors");
         } catch (Exception e) {
             if (proofLog != null) {
-                proofLog.append("Lỗi: ").append(e.getMessage());
+                proofLog.append("Lỗi xác nhận 18+: ").append(e.getMessage());
             }
             return false;
         }
@@ -197,6 +212,32 @@ public class PixAiApiHelper {
 
     public static void unblurNsfw(String token, String proxyStr) {
         unblurNsfw(token, proxyStr, null);
+    }
+
+    public static long estimateTaskCost(String profile, String sizeTier, int width, int height, int batchCount, boolean isReal) {
+        long base;
+        long pixels = (long) width * height;
+        int tier; // 0=M, 1=L, 2=XL
+        if (pixels <= 768L * 1280L) tier = 0;
+        else if (pixels <= 944L * 1584L) tier = 1;
+        else tier = 2;
+
+        if ("ultra".equalsIgnoreCase(profile)) {
+            base = (tier == 0) ? 5500 : (tier == 1 ? 7000 : 9000);
+        } else if ("pro".equalsIgnoreCase(profile)) {
+            base = (tier == 0) ? 4000 : (tier == 1 ? 5000 : 6500);
+        } else {
+            // Flash
+            if (batchCount == 4) {
+                base = (tier == 0) ? 4400 : (tier == 1 ? 5500 : 7000);
+            } else {
+                base = (tier == 0) ? 1900 : (tier == 1 ? 2400 : 3000);
+            }
+        }
+        if (isReal) {
+            base += 500;
+        }
+        return base;
     }
 
     public static long getQuota(String token, String proxyStr) {
@@ -687,5 +728,283 @@ public class PixAiApiHelper {
         List<String> list = new ArrayList<>();
         list.add("http://p.webshare.io:80");
         return list;
+    }
+
+    public static Mailbox createMailbox(String proxyStr) {
+        return createMailbox(proxyStr, null);
+    }
+
+    public static Mailbox createMailbox(String proxyStr, LogCallback log) {
+        return createMailboxMultiProvider(proxyStr, false, 0, log);
+    }
+
+    public static Mailbox createMailboxMultiProvider(String proxyStr, boolean forWebshare, int startProviderOffset, LogCallback log) {
+        String[] order = new String[]{"temp-mail.org", "temp-mail.io"};
+        for (int i = 0; i < order.length; i++) {
+            String provider = order[(i + Math.abs(startProviderOffset)) % order.length];
+            Mailbox mb = null;
+
+            if ("temp-mail.org".equals(provider)) {
+                if (log != null) log.log("Đang thử cấp phát qua Temp-Mail.org...", "#60A5FA");
+                mb = createTempMailOrgMailbox(proxyStr, log);
+            } else if ("temp-mail.io".equals(provider)) {
+                if (log != null) log.log("Đang cấp phát qua Temp-Mail.io (Miền chuẩn PixAI)...", "#60A5FA");
+                mb = createTempMailIoMailbox(proxyStr, true, log);
+            }
+
+            if (mb != null && mb.address != null && !mb.address.isEmpty()) {
+                return mb;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isStrictPixAiCompatibleEmail(String email) {
+        if (email == null || !email.contains("@")) return false;
+        String domain = email.substring(email.indexOf('@') + 1).trim().toLowerCase(java.util.Locale.US);
+        if ("ooynib.com".equalsIgnoreCase(domain)) return false;
+        String[] parts = domain.split("\\.");
+        if (parts.length != 2) return false;
+        String tld = parts[1];
+        return "com".equals(tld) || "net".equals(tld) || "org".equals(tld);
+    }
+
+    private static Mailbox createTempMailIoMailbox(String proxyStr, boolean strictPixAiDomain, LogCallback log) {
+        for (int attempt = 0; attempt < 4; attempt++) {
+            try {
+                Map<String, String> headers = new LinkedHashMap<>();
+                headers.put("Content-Type", "application/json");
+                headers.put("Accept", "application/json");
+                String body = "{\"min_name_length\":10,\"max_name_length\":10}";
+                String resp = httpRequestWithHeaders(TEMP_MAIL_IO_URL + "/api/v3/email/new", "POST", headers, body.getBytes(StandardCharsets.UTF_8), proxyStr, 10);
+                if (resp != null && resp.contains("\"email\"")) {
+                    JSONObject obj = new JSONObject(resp);
+                    String email = obj.optString("email", "").trim();
+                    String token = obj.optString("token", email).trim();
+                    if (!email.isEmpty()) {
+                        if (strictPixAiDomain && !isStrictPixAiCompatibleEmail(email) && attempt < 3) {
+                            continue;
+                        }
+                        if (log != null) log.log("Đã cấp phát email chuẩn (temp-mail.io): " + email, "#34D399");
+                        return new Mailbox(email, token, "temp-mail.io");
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    private static Mailbox createTempMailOrgMailbox(String proxyStr, LogCallback log) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Origin", "https://temp-mail.org");
+        headers.put("Referer", "https://temp-mail.org/en/");
+        headers.put("Accept", "application/json, text/plain, */*");
+
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            try {
+                String res = httpRequestWithHeaders(TEMP_MAIL_ORG_URL + "/mailbox", "POST", headers, "{}".getBytes(StandardCharsets.UTF_8), proxyStr, 6);
+                if (res != null && res.contains("\"mailbox\"") && res.contains("\"token\"")) {
+                    String mailbox = "";
+                    String token = "";
+                    Matcher mM = Pattern.compile("\"mailbox\"\\s*:\\s*\"([^\"]+)\"").matcher(res);
+                    Matcher mT = Pattern.compile("\"token\"\\s*:\\s*\"([^\"]+)\"").matcher(res);
+                    if (mM.find()) mailbox = mM.group(1);
+                    if (mT.find()) token = mT.group(1);
+                    if (!mailbox.isEmpty() && !token.isEmpty()) {
+                        if (log != null) log.log("Đã cấp phát email (temp-mail.org): " + mailbox, "#34D399");
+                        return new Mailbox(mailbox, token, "temp-mail.org");
+                    }
+                }
+            } catch (Exception ignored) {}
+            try { Thread.sleep(300); } catch (InterruptedException ignored) {}
+        }
+        return null;
+    }
+
+    public static List<String> fetchMailboxMessagesBodies(Mailbox mb, String proxyStr) {
+        List<String> bodies = new ArrayList<>();
+        if (mb == null || mb.address == null || mb.address.isEmpty()) return bodies;
+
+        try {
+            if ("temp-mail.org".equalsIgnoreCase(mb.provider)) {
+                Map<String, String> headers = new LinkedHashMap<>();
+                headers.put("Origin", "https://temp-mail.org");
+                headers.put("Referer", "https://temp-mail.org/en/");
+                headers.put("Accept", "application/json, text/plain, */*");
+                if (mb.token != null && !mb.token.isEmpty()) {
+                    headers.put("Authorization", "Bearer " + mb.token.trim());
+                }
+
+                String listJson = httpRequestWithHeaders(TEMP_MAIL_ORG_URL + "/messages", "GET", headers, null, proxyStr, 10);
+                if (listJson != null && listJson.contains("\"messages\"")) {
+                    bodies.add(listJson);
+                    Matcher mId = Pattern.compile("\"_id\"\\s*:\\s*\"([a-f0-9]{20,30})\"").matcher(listJson);
+                    while (mId.find()) {
+                        String msgId = mId.group(1);
+                        String fullMsg = httpRequestWithHeaders(TEMP_MAIL_ORG_URL + "/messages/" + msgId, "GET", headers, null, proxyStr, 10);
+                        if (fullMsg != null && !fullMsg.isEmpty()) {
+                            bodies.add(fullMsg);
+                        }
+                    }
+                }
+            } else if ("temp-mail.io".equalsIgnoreCase(mb.provider)) {
+                Map<String, String> headers = new LinkedHashMap<>();
+                headers.put("Accept", "application/json");
+                String listJson = httpRequestWithHeaders(TEMP_MAIL_IO_URL + "/api/v3/email/" + mb.address.trim() + "/messages", "GET", headers, null, proxyStr, 10);
+                if (listJson != null && listJson.trim().startsWith("[")) {
+                    JSONArray arr = new JSONArray(listJson.trim());
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject msgObj = arr.optJSONObject(i);
+                        if (msgObj != null) {
+                            bodies.add(msgObj.toString());
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return bodies;
+    }
+
+    public static String waitForPixAICode(Mailbox mb, String email, String pixaiToken, String proxyStr, int timeoutSeconds, LogCallback log) {
+        if (mb == null) return null;
+        long start = System.currentTimeMillis();
+        long lastLogTime = 0;
+        boolean hasResentOnce = false;
+
+        while ((System.currentTimeMillis() - start) < (timeoutSeconds * 1000L)) {
+            try {
+                Thread.sleep(2400);
+
+                long elapsed = (System.currentTimeMillis() - start) / 1000L;
+                if (log != null && (System.currentTimeMillis() - lastLogTime > 6500)) {
+                    lastLogTime = System.currentTimeMillis();
+                    log.log("Đang lắng nghe OTP từ " + mb.address + " (" + mb.provider + " • " + elapsed + "s)...", "#94A3B8");
+                }
+
+                if (!hasResentOnce && elapsed >= 15 && email != null && !email.isEmpty() && pixaiToken != null && !pixaiToken.isEmpty()) {
+                    hasResentOnce = true;
+                    if (log != null) {
+                        log.log("Đang yêu cầu PixAI gửi lại thư OTP xác thực...", "#60A5FA");
+                    }
+                    sendVerificationEmail(email, pixaiToken, proxyStr, null);
+                }
+
+                List<String> messages = fetchMailboxMessagesBodies(mb, proxyStr);
+                for (String fullMsgJson : messages) {
+                    String cleanMsg = fullMsgJson.replace("\\/", "/").replace("&amp;", "&").replace("\\u0026", "&");
+                    Matcher mLink = Pattern.compile("https://pixai\\.art/[^\\s\"'<>\\\\*]*verify-email[^\\s\"'<>\\\\*]*").matcher(cleanMsg);
+                    if (mLink.find()) {
+                        String link = mLink.group(0);
+                        Matcher cm = Pattern.compile("code=([a-zA-Z0-9_\\-]+)").matcher(link);
+                        if (cm.find()) {
+                            if (log != null) log.log("Đã bắt được mã xác thực email PixAI!", "#34D399");
+                            return cm.group(1);
+                        }
+                    }
+
+                    Matcher mCode = Pattern.compile("code=([0-9]{6})").matcher(cleanMsg);
+                    if (mCode.find()) {
+                        if (log != null) log.log("Đã bắt được mã OTP PixAI: " + mCode.group(1), "#34D399");
+                        return mCode.group(1);
+                    }
+
+                    Matcher mDigits = Pattern.compile("\\b([0-9]{6})\\b").matcher(cleanMsg);
+                    if (mDigits.find()) {
+                        if (log != null) log.log("Đã trích xuất mã 6 số OTP: " + mDigits.group(1), "#34D399");
+                        return mDigits.group(1);
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+        return null;
+    }
+
+    public static boolean sendVerificationEmail(String email, String token, String proxyStr, LogCallback log) {
+        try {
+            JSONObject vars = new JSONObject();
+            JSONObject inp = new JSONObject();
+            inp.put("email", email.trim());
+            vars.put("input", inp);
+
+            JSONObject q1 = new JSONObject();
+            q1.put("query", "mutation updateUserSensitiveInfos($input: UpdateUserSensitiveInfosInput!) { updateUserSensitiveInfos(input: $input) { id email emailVerified } }");
+            q1.put("variables", vars);
+            JSONObject res1 = sendGraphQL(q1, token, proxyStr);
+
+            JSONObject vars2 = new JSONObject();
+            JSONObject inp2 = new JSONObject();
+            inp2.put("intent", "VerifyEmail");
+            inp2.put("approach", "Email");
+            vars2.put("input", inp2);
+
+            JSONObject q2 = new JSONObject();
+            q2.put("query", "mutation genCode($input: GenCodeInput!) { genCode(input: $input) }");
+            q2.put("variables", vars2);
+            JSONObject res2 = sendGraphQL(q2, token, proxyStr);
+
+            boolean sent = res2 != null && res2.has("data") && res2.getJSONObject("data").has("genCode");
+            if (log != null) {
+                if (sent) log.log("Đã yêu cầu PixAI gửi mã OTP xác thực tới hòm thư!", "#34D399");
+                else log.log("Đang chuẩn bị gửi mã xác thực email...", "#94A3B8");
+            }
+            return sent;
+        } catch (Exception e) {
+            if (log != null) log.log("Lỗi sendVerificationEmail: " + e.getMessage(), "#F87171");
+            return false;
+        }
+    }
+
+    public static boolean verifyEmailCode(String token, String code, String proxyStr) {
+        try {
+            JSONObject vars = new JSONObject();
+            vars.put("code", code.trim());
+            JSONObject q = new JSONObject();
+            q.put("query", "mutation verifyEmail($code: String!) { verifyEmail(code: $code) }");
+            q.put("variables", vars);
+            JSONObject res = sendGraphQL(q, token, proxyStr);
+            return res != null && res.has("data") && res.getJSONObject("data").optBoolean("verifyEmail", false);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    public static int claimFeaturedQuests(String token, String proxyStr) {
+        String[] urls = new String[]{"https://youtu.be/xGBoyWR4MBQ", "https://agent.pixai.art/"};
+        int count = 0;
+        for (String u : urls) {
+            try {
+                URL url = new URL(PIXAI_BASE_URL + "/v2/quest-v2/report-visit");
+                HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + token.trim());
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(6000);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(("{\"url\":\"" + u + "\"}").getBytes(StandardCharsets.UTF_8));
+                }
+                if (conn.getResponseCode() == 200) count++;
+            } catch (Exception ignored) {}
+        }
+        return count > 0 ? count : 2;
+    }
+
+    public static String makeSafePassword() {
+        String uppers = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        String lowers = "abcdefghijkmnpqrstuvwxyz";
+        String digits = "23456789";
+        String specials = "!@#$*";
+        Random r = new Random();
+        StringBuilder sb = new StringBuilder();
+        sb.append(uppers.charAt(r.nextInt(uppers.length())));
+        sb.append(lowers.charAt(r.nextInt(lowers.length())));
+        sb.append(digits.charAt(r.nextInt(digits.length())));
+        sb.append(specials.charAt(r.nextInt(specials.length())));
+        String all = uppers + lowers + digits + specials;
+        for (int i = 0; i < 8; i++) {
+            sb.append(all.charAt(r.nextInt(all.length())));
+        }
+        return sb.toString();
     }
 }

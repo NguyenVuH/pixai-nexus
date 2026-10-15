@@ -433,247 +433,519 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
-                    <!-- Minh họa tỷ lệ + thông số hiện tại -->
-                    <LinearLayout
+                    <!-- Dải cuộn ngang chứa từng thẻ tỷ lệ có hình minh họa hình học chuẩn xác -->
+                    <HorizontalScrollView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center_vertical"
-                        android:orientation="horizontal">
-
-                        <!-- KHUNG MINH HỌA HÌNH HỌC CHUẨN XÁC -->
-                        <FrameLayout
-                            android:id="@+id/flRatioPreviewContainer"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:layout_marginEnd="12dp"
-                            android:background="@drawable/bg_ratio_container">
-
-                            <View
-                                android:id="@+id/vRatioPreviewBox"
-                                android:layout_width="26dp"
-                                android:layout_height="42dp"
-                                android:layout_gravity="center"
-                                android:background="@drawable/bg_ratio_box" />
-                        </FrameLayout>
+                        android:scrollbars="none">
 
                         <LinearLayout
-                            android:layout_width="0dp"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
+                            android:orientation="horizontal"
+                            android:paddingVertical="2dp">
 
-                            <TextView
-                                android:id="@+id/tvRatioInfo"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:text="Tỷ lệ: 9:16 | Chuẩn Dọc"
-                                android:textColor="#FFFFFF"
-                                android:textSize="12sp"
-                                android:textStyle="bold" />
+                            <!-- Auto ratio card (visible when ref image attached) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatioAuto"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical"
+                                android:visibility="gone">
 
-                            <TextView
-                                android:id="@+id/tvDimensionInfo"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="Kích thước: 1104 x 1824 px (Cấp XL)"
-                                android:textColor="#9E9E9E"
-                                android:textSize="11sp" />
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatioAuto"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatioAuto"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="Auto"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 9:16 (Tall portrait) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio9_16"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_active"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio9_16"
+                                        android:layout_width="12dp"
+                                        android:layout_height="22dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_active" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio9_16"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="9:16"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 16:9 (Wide landscape) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio16_9"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio16_9"
+                                        android:layout_width="22dp"
+                                        android:layout_height="12dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio16_9"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="16:9"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 1:1 (Square) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio1_1"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio1_1"
+                                        android:layout_width="18dp"
+                                        android:layout_height="18dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio1_1"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="1:1"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 3:4 (Portrait) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio3_4"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio3_4"
+                                        android:layout_width="15dp"
+                                        android:layout_height="20dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio3_4"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="3:4"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 4:3 (Landscape) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio4_3"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio4_3"
+                                        android:layout_width="20dp"
+                                        android:layout_height="15dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio4_3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="4:3"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 2:3 (Photo Portrait) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio2_3"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio2_3"
+                                        android:layout_width="14dp"
+                                        android:layout_height="21dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio2_3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="2:3"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 3:2 (Photo Landscape) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio3_2"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio3_2"
+                                        android:layout_width="21dp"
+                                        android:layout_height="14dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio3_2"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="3:2"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 3:5 (Slim Portrait) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio3_5"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio3_5"
+                                        android:layout_width="13dp"
+                                        android:layout_height="22dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio3_5"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="3:5"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 5:3 (Slim Landscape) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio5_3"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio5_3"
+                                        android:layout_width="22dp"
+                                        android:layout_height="13dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio5_3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="5:3"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 7:9 (Social Portrait) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio7_9"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio7_9"
+                                        android:layout_width="16dp"
+                                        android:layout_height="21dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio7_9"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="7:9"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 9:7 (Social Landscape) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio9_7"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio9_7"
+                                        android:layout_width="21dp"
+                                        android:layout_height="16dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio9_7"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="9:7"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 1:3 (Vertical Ribbon) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio1_3"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:layout_marginEnd="6dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio1_3"
+                                        android:layout_width="8dp"
+                                        android:layout_height="22dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio1_3"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="1:3"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+
+                            <!-- 3:1 (Horizontal Banner) -->
+                            <LinearLayout
+                                android:id="@+id/cardRatio3_1"
+                                android:layout_width="54dp"
+                                android:layout_height="64dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="vertical">
+
+                                <FrameLayout
+                                    android:layout_width="26dp"
+                                    android:layout_height="26dp">
+                                    <View
+                                        android:id="@+id/shapeRatio3_1"
+                                        android:layout_width="22dp"
+                                        android:layout_height="8dp"
+                                        android:layout_gravity="center"
+                                        android:background="@drawable/bg_ratio_box_normal" />
+                                </FrameLayout>
+
+                                <TextView
+                                    android:id="@+id/tvLabelRatio3_1"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="3dp"
+                                    android:singleLine="true"
+                                    android:text="3:1"
+                                    android:textColor="#9E9E9E"
+                                    android:textSize="10sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
                         </LinearLayout>
-                    </LinearLayout>
+                    </HorizontalScrollView>
 
-                    <!-- Danh sách nút tỷ lệ (Hàng 1) -->
-                    <LinearLayout
+                    <!-- Thông tin tỷ lệ và kích thước hiện tại -->
+                    <TextView
+                        android:id="@+id/tvRatioInfo"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <Button
-                            android:id="@+id/btnRatio9_16"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginEnd="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_active"
-                            android:minWidth="0dp"
-                            android:text="9:16"
-                            android:textAllCaps="false"
-                            android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio16_9"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="16:9"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio1_1"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="1:1"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio3_4"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="3:4"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio4_3"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginStart="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="4:3"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Danh sách nút tỷ lệ (Hàng 2) -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="5dp"
-                        android:orientation="horizontal">
-
-                        <Button
-                            android:id="@+id/btnRatio2_3"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginEnd="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="2:3"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio3_2"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="3:2"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio3_5"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="3:5"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio5_3"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="5:3"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio7_9"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginStart="2dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="7:9"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-                    </LinearLayout>
-
-                    <!-- Danh sách nút tỷ lệ (Hàng 3) -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="5dp"
-                        android:orientation="horizontal">
-
-                        <Button
-                            android:id="@+id/btnRatio9_7"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginEnd="3dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="9:7"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio1_3"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginHorizontal="3dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="1:3"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-
-                        <Button
-                            android:id="@+id/btnRatio3_1"
-                            android:layout_width="0dp"
-                            android:layout_height="34dp"
-                            android:layout_marginStart="3dp"
-                            android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_chip_normal"
-                            android:minWidth="0dp"
-                            android:text="3:1"
-                            android:textAllCaps="false"
-                            android:textColor="#9E9E9E"
-                            android:textSize="11sp" />
-                    </LinearLayout>
+                        android:layout_marginTop="8dp"
+                        android:text="Tỷ lệ: 9:16 • Kích thước: 1104 x 1824 px (Cấp XL)"
+                        android:textColor="#CCCCCC"
+                        android:textSize="11sp" />
 
                     <!-- Số lượng ảnh output -->
                     <LinearLayout
@@ -1090,11 +1362,41 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 android:text="QUẢN LÝ TÀI KHOẢN"
                 android:textColor="#FFFFFF"
                 android:textSize="15sp"
                 android:textStyle="bold" />
+
+            <!-- Thẻ tổng quan số lượng tài khoản và tổng tích lũy -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                android:background="@drawable/bg_cyber_card"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="12dp">
+
+                <TextView
+                    android:id="@+id/tvTotalAccountsSummary"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Tổng: 0 tài khoản"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvTotalCreditsSummary"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Tích Lũy: 0 CR"
+                    android:textColor="#81C784"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
 
             <!-- Nhập token mới hoặc thêm -->
             <LinearLayout
@@ -1139,6 +1441,7 @@
                         android:layout_marginEnd="4dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_cyber_btn_secondary"
+                        android:singleLine="true"
                         android:text="Thêm Token Này"
                         android:textAllCaps="false"
                         android:textColor="#FFFFFF"
@@ -1151,6 +1454,7 @@
                         android:layout_marginStart="4dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_cyber_btn_primary"
+                        android:singleLine="true"
                         android:text="Tự Đăng Ký Acc Mới"
                         android:textAllCaps="false"
                         android:textColor="#121212"
@@ -1168,10 +1472,11 @@
                     <Button
                         android:id="@+id/btnImportText"
                         android:layout_width="0dp"
-                        android:layout_height="34dp"
+                        android:layout_height="38dp"
                         android:layout_marginEnd="3dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_cyber_btn_secondary"
+                        android:singleLine="true"
                         android:text="Nhập List Text"
                         android:textAllCaps="false"
                         android:textColor="#E0E0E0"
@@ -1180,10 +1485,11 @@
                     <Button
                         android:id="@+id/btnImportJson"
                         android:layout_width="0dp"
-                        android:layout_height="34dp"
+                        android:layout_height="38dp"
                         android:layout_marginHorizontal="3dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_cyber_btn_secondary"
+                        android:singleLine="true"
                         android:text="Nhập JSON"
                         android:textAllCaps="false"
                         android:textColor="#E0E0E0"
@@ -1192,10 +1498,11 @@
                     <Button
                         android:id="@+id/btnExportJson"
                         android:layout_width="0dp"
-                        android:layout_height="34dp"
+                        android:layout_height="38dp"
                         android:layout_marginStart="3dp"
                         android:layout_weight="1"
                         android:background="@drawable/bg_cyber_btn_secondary"
+                        android:singleLine="true"
                         android:text="Xuất JSON"
                         android:textAllCaps="false"
                         android:textColor="#81C784"
@@ -1256,10 +1563,11 @@
                 <Button
                     android:id="@+id/btnUnblurNsfw"
                     android:layout_width="0dp"
-                    android:layout_height="36dp"
+                    android:layout_height="38dp"
                     android:layout_marginEnd="4dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_cyber_btn_secondary"
+                    android:singleLine="true"
                     android:text="Mở Khóa 18+ All"
                     android:textAllCaps="false"
                     android:textColor="#E0E0E0"
@@ -1268,10 +1576,11 @@
                 <Button
                     android:id="@+id/btnClearAllAccounts"
                     android:layout_width="0dp"
-                    android:layout_height="36dp"
+                    android:layout_height="38dp"
                     android:layout_marginStart="4dp"
                     android:layout_weight="1"
                     android:background="@drawable/bg_cyber_btn_secondary"
+                    android:singleLine="true"
                     android:text="Xóa Hết Tài Khoản"
                     android:textAllCaps="false"
                     android:textColor="#E57373"

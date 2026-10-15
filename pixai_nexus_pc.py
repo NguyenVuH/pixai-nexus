@@ -249,6 +249,9 @@ class PixAiNexusStudio(tk.Tk):
 
         self.setup_theme()
         self.build_ui()
+        self.refresh_accounts_table()
+        self.refresh_history_table()
+        self.set_ratio(self.current_ratio.get())
         self.update_dimensions_and_preview()
         self.update_live_cost()
         self.update_header()
@@ -281,13 +284,28 @@ class PixAiNexusStudio(tk.Tk):
 
     def save_config(self):
         try:
-            self.config["size_tier"] = self.current_size_tier.get()
-            self.config["ratio"] = self.current_ratio.get()
-            try:
-                self.config["custom_w"] = int(self.custom_w.get())
-                self.config["custom_h"] = int(self.custom_h.get())
-            except Exception:
-                pass
+            if hasattr(self, "current_size_tier"):
+                self.config["size_tier"] = self.current_size_tier.get()
+            if hasattr(self, "current_ratio"):
+                self.config["ratio"] = self.current_ratio.get()
+            if hasattr(self, "custom_w"):
+                try:
+                    self.config["custom_w"] = int(self.custom_w.get())
+                except Exception:
+                    pass
+            if hasattr(self, "custom_h"):
+                try:
+                    self.config["custom_h"] = int(self.custom_h.get())
+                except Exception:
+                    pass
+            if hasattr(self, "ent_proxy_addr"):
+                self.config["proxy_address"] = self.ent_proxy_addr.get().strip()
+            if hasattr(self, "var_use_proxy"):
+                self.config["use_proxy"] = self.var_use_proxy.get()
+            if hasattr(self, "var_auto_fallback"):
+                self.config["auto_fallback_direct"] = self.var_auto_fallback.get()
+            if hasattr(self, "var_auto_rotate"):
+                self.config["auto_rotate_accounts"] = self.var_auto_rotate.get()
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
         except Exception:
@@ -481,50 +499,63 @@ class PixAiNexusStudio(tk.Tk):
         self.custom_h.trace_add("write", lambda *args: self.on_custom_dim_changed())
         self.frame_custom_dims.pack_forget()
 
-        # 4. Tỷ Lệ Khung Hình & Minh Họa Trực Quan (NO COMBOBOX)
+        # 4. Tỷ Lệ Khung Hình & Minh Họa Trực Quan (Từng tỷ lệ có minh họa hình học riêng)
         grp_ratio = tk.LabelFrame(scrollable_frame, text=" Tỷ Lệ Khung Hình & Minh Họa Trực Quan ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
         grp_ratio.pack(fill="x", pady=(0, 8))
 
-        row_preview = tk.Frame(grp_ratio, bg=self.c_card)
-        row_preview.pack(fill="x", pady=(0, 6))
+        self.lbl_ratio_dims = tk.Label(grp_ratio, text="Tỷ lệ: 9:16 • Kích thước: 1104 x 1824 px (XL)", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9), anchor="w")
+        self.lbl_ratio_dims.pack(fill="x", pady=(0, 6))
 
-        # Canvas minh họa hình học chuẩn xác
-        self.ratio_canvas = tk.Canvas(row_preview, width=48, height=48, bg="#161616", highlightthickness=1, highlightbackground=self.c_card_border)
-        self.ratio_canvas.pack(side="left", padx=(0, 10))
+        frame_ratio_cards = tk.Frame(grp_ratio, bg=self.c_card)
+        frame_ratio_cards.pack(fill="x", pady=(2, 6))
 
-        frame_ratio_info = tk.Frame(row_preview, bg=self.c_card)
-        frame_ratio_info.pack(side="left", fill="both", expand=True)
+        self.ratio_cards = {}
+        ratio_list = [
+            ("9:16", 10, 20),
+            ("16:9", 20, 10),
+            ("1:1", 16, 16),
+            ("3:4", 12, 17),
+            ("4:3", 17, 12),
+            ("2:3", 12, 18),
+            ("3:2", 18, 12),
+            ("3:5", 11, 19),
+            ("5:3", 19, 11),
+            ("7:9", 13, 17),
+            ("9:7", 17, 13),
+            ("1:3", 7, 21),
+            ("3:1", 21, 7),
+        ]
 
-        self.lbl_ratio_title = tk.Label(frame_ratio_info, text="Tỷ lệ: 9:16", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 10, "bold"), anchor="w")
-        self.lbl_ratio_title.pack(fill="x")
+        row1 = tk.Frame(frame_ratio_cards, bg=self.c_card)
+        row1.pack(fill="x", pady=(0, 4))
+        row2 = tk.Frame(frame_ratio_cards, bg=self.c_card)
+        row2.pack(fill="x")
 
-        self.lbl_ratio_dims = tk.Label(frame_ratio_info, text="Kích thước: 1104 x 1824 px (XL)", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9), anchor="w")
-        self.lbl_ratio_dims.pack(fill="x")
+        for idx, (r_name, sw, sh) in enumerate(ratio_list):
+            parent_row = row1 if idx < 7 else row2
+            card = tk.Frame(parent_row, bg=self.c_input, bd=1, relief="solid", padx=2, pady=3, cursor="hand2")
+            card.pack(side="left", fill="x", expand=True, padx=2)
 
-        # Hàng nút tỷ lệ 1: 9:16, 16:9, 1:1, 3:4, 4:3
-        row_r1 = tk.Frame(grp_ratio, bg=self.c_card)
-        row_r1.pack(fill="x", pady=(2, 2))
-        self.ratio_buttons = {}
-        for r_name in ["9:16", "16:9", "1:1", "3:4", "4:3"]:
-            btn = tk.Button(row_r1, text=r_name, bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=3, font=("Segoe UI", 8), command=lambda rn=r_name: self.set_ratio(rn))
-            btn.pack(side="left", fill="x", expand=True, padx=1)
-            self.ratio_buttons[r_name] = btn
+            cv = tk.Canvas(card, width=24, height=24, bg=self.c_input, highlightthickness=0)
+            cv.pack()
+            x0 = (24 - sw) / 2
+            y0 = (24 - sh) / 2
+            shape_id = cv.create_rectangle(x0, y0, x0 + sw, y0 + sh, fill="#1A1A1A", outline="#555555", width=1)
 
-        # Hàng nút tỷ lệ 2: 2:3, 3:2, 3:5, 5:3, 7:9
-        row_r2 = tk.Frame(grp_ratio, bg=self.c_card)
-        row_r2.pack(fill="x", pady=(2, 2))
-        for r_name in ["2:3", "3:2", "3:5", "5:3", "7:9"]:
-            btn = tk.Button(row_r2, text=r_name, bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=3, font=("Segoe UI", 8), command=lambda rn=r_name: self.set_ratio(rn))
-            btn.pack(side="left", fill="x", expand=True, padx=1)
-            self.ratio_buttons[r_name] = btn
+            lbl = tk.Label(card, text=r_name, bg=self.c_input, fg=self.c_muted, font=("Segoe UI", 7, "bold"))
+            lbl.pack(pady=(2, 0))
 
-        # Hàng nút tỷ lệ 3: 9:7, 1:3, 3:1
-        row_r3 = tk.Frame(grp_ratio, bg=self.c_card)
-        row_r3.pack(fill="x", pady=(2, 0))
-        for r_name in ["9:7", "1:3", "3:1"]:
-            btn = tk.Button(row_r3, text=r_name, bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=3, font=("Segoe UI", 8), command=lambda rn=r_name: self.set_ratio(rn))
-            btn.pack(side="left", fill="x", expand=True, padx=1)
-            self.ratio_buttons[r_name] = btn
+            for widget in (card, cv, lbl):
+                widget.bind("<Button-1>", lambda e, rn=r_name: self.set_ratio(rn))
+
+            self.ratio_cards[r_name] = {
+                "frame": card,
+                "canvas": cv,
+                "shape": shape_id,
+                "label": lbl,
+                "sw": sw,
+                "sh": sh
+            }
 
         # Hàng chọn số lượng ảnh (1 hoặc 4)
         row_batch = tk.Frame(grp_ratio, bg=self.c_card)
@@ -881,9 +912,16 @@ class PixAiNexusStudio(tk.Tk):
 
     def set_ratio(self, ratio_str):
         self.current_ratio.set(ratio_str)
-        for r_name, btn in self.ratio_buttons.items():
-            active = (r_name == ratio_str)
-            btn.config(bg=self.c_active if active else self.c_input, fg=self.c_text if active else self.c_muted, font=("Segoe UI", 8, "bold" if active else "normal"))
+        if hasattr(self, "ratio_cards"):
+            for r_name, item in self.ratio_cards.items():
+                is_active = (r_name == ratio_str)
+                bg_col = self.c_active if is_active else self.c_input
+                item["frame"].config(bg=bg_col)
+                item["canvas"].config(bg=bg_col)
+                fill_col = "#FFFFFF" if is_active else "#222222"
+                outline_col = "#FFFFFF" if is_active else "#444444"
+                item["canvas"].itemconfig(item["shape"], fill=fill_col, outline=outline_col)
+                item["label"].config(bg=bg_col, fg=(self.c_text if is_active else self.c_muted), font=("Segoe UI", 7, "bold" if is_active else "normal"))
 
         self.save_config()
         self.update_dimensions_and_preview()
@@ -936,22 +974,9 @@ class PixAiNexusStudio(tk.Tk):
 
     def update_dimensions_and_preview(self):
         w, h, desc = self.get_selected_dimensions()
-        self.lbl_ratio_title.config(text=f"Tỷ lệ: {self.current_ratio.get()}")
-        self.lbl_ratio_dims.config(text=f"Kích thước: {w} x {h} px ({desc})")
-
-        # Vẽ hình minh họa hình học tỷ lệ chính xác
-        self.ratio_canvas.delete("all")
-        max_box = 40.0
-        if w >= h:
-            bw = max_box
-            bh = max(10.0, max_box * (h / w))
-        else:
-            bh = max_box
-            bw = max(10.0, max_box * (w / h))
-
-        x0 = (48 - bw) / 2
-        y0 = (48 - bh) / 2
-        self.ratio_canvas.create_rectangle(x0, y0, x0 + bw, y0 + bh, fill="#FFFFFF", outline="#CCCCCC", width=1)
+        cur_r = self.current_ratio.get()
+        if hasattr(self, "lbl_ratio_dims"):
+            self.lbl_ratio_dims.config(text=f"Tỷ lệ: {cur_r} • Kích thước: {w} x {h} px ({desc})")
 
     def set_batch(self, count):
         if count == 4 and self.current_profile.get() != "flash":
