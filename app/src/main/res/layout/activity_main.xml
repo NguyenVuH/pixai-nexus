@@ -1,0 +1,662 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0B0F19"
+    android:orientation="vertical">
+
+    <!-- 1. TOP HEADER BAR -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#131B2E"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="14dp"
+        android:paddingVertical="10dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="[PIXAI NEXUS STUDIO]"
+            android:textColor="#38BDF8"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvHeaderAccount"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:ellipsize="middle"
+            android:singleLine="true"
+            android:text="[Đang nạp 44 tài khoản...]"
+            android:textColor="#34D399"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvHeaderProxy"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="#1E293B"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:text="[PROXY SHIELD: ON]"
+            android:textColor="#818CF8"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 2. NAVIGATION TAB BAR (NO ICONS, PURE CYBER TYPOGRAPHY) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="38dp"
+        android:background="#0D1322"
+        android:orientation="horizontal"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="4dp">
+
+        <Button
+            android:id="@+id/btnNavStudio"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@drawable/bg_cyber_chip_active"
+            android:text="[TẠO ẢNH STUDIO]"
+            android:textAllCaps="false"
+            android:textColor="#38BDF8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnNavAccounts"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_cyber_chip_normal"
+            android:text="[QUẢN LÝ 44 TK]"
+            android:textAllCaps="false"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnNavHistory"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_cyber_chip_normal"
+            android:text="[KHO LỊCH SỬ]"
+            android:textAllCaps="false"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 3. CONTENT CONTAINER -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <!-- ================= TAB 1: STUDIO ================= -->
+        <ScrollView
+            android:id="@+id/layoutTabStudio"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <!-- Row 1: Style Selection (Anime vs Thực Tế) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/bg_cyber_card"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="1. PHONG CÁCH TẠO ẢNH:"
+                        android:textColor="#38BDF8"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnStyleAnime"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginEnd="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[ANIME NGUYÊN BẢN]"
+                            android:textAllCaps="false"
+                            android:textColor="#94A3B8"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnStyleReal"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_active"
+                            android:text="[THỰC TẾ (LORA CHUẨN)]"
+                            android:textAllCaps="false"
+                            android:textColor="#38BDF8"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/tvLoraStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="• Đã kích hoạt LoRA Tsubaki 3 Realism v1 (Trọng số 0.70)"
+                        android:textColor="#34D399"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <!-- Row 2: Profile Selection (Flash / Pro / Ultra) -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_cyber_card"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="2. CHẾ ĐỘ ENGINE (GPU PROFILE):"
+                        android:textColor="#818CF8"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="36dp"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnProfileFlash"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_active"
+                            android:text="[FLASH (SIÊU TỐC)]"
+                            android:textAllCaps="false"
+                            android:textColor="#38BDF8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnProfilePro"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="4dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[PRO (CHẤT LƯỢNG)]"
+                            android:textAllCaps="false"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnProfileUltra"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="4dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[ULTRA (ĐỈNH CAO)]"
+                            android:textAllCaps="false"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Row 3: Aspect Ratio & Batch -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_cyber_card"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="3. KÍCH THƯỚC &amp; SỐ LƯỢNG OUTPUT:"
+                        android:textColor="#F59E0B"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <Spinner
+                        android:id="@+id/spRatio"
+                        android:layout_width="match_parent"
+                        android:layout_height="38dp"
+                        android:layout_marginTop="6dp"
+                        android:background="@drawable/bg_cyber_input" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:layout_marginTop="6dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Số lượng ảnh:"
+                            android:textColor="#94A3B8"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnBatch1"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="10dp"
+                            android:background="@drawable/bg_cyber_chip_active"
+                            android:text="[1 ẢNH]"
+                            android:textAllCaps="false"
+                            android:textColor="#38BDF8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnBatch4"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="6dp"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:text="[4 ẢNH]"
+                            android:textAllCaps="false"
+                            android:textColor="#94A3B8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Row 4: Attach Reference Image -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_cyber_card"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="4. ĐÍNH KÈM ẢNH MẪU (IMG2IMG):"
+                        android:textColor="#34D399"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="34dp"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnPickImage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[+ CHỌN ẢNH MẪU]"
+                            android:textAllCaps="false"
+                            android:textColor="#34D399"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <Button
+                            android:id="@+id/btnClearImage"
+                            android:layout_width="wrap_content"
+                            android:layout_height="match_parent"
+                            android:layout_marginStart="6dp"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[GỠ ẢNH]"
+                            android:textAllCaps="false"
+                            android:textColor="#F43F5E"
+                            android:textSize="10sp"
+                            android:visibility="gone" />
+
+                        <TextView
+                            android:id="@+id/tvAttachedImageName"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:text="Chưa đính kèm ảnh (Tạo từ Text Prompt)"
+                            android:textColor="#64748B"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Row 5: Prompt & Negative Prompt -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/bg_cyber_card"
+                    android:orientation="vertical"
+                    android:padding="10dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="5. CÂU LỆNH PROMPT:"
+                        android:textColor="#F8FAFC"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etPrompt"
+                        android:layout_width="match_parent"
+                        android:layout_height="70dp"
+                        android:layout_marginTop="4dp"
+                        android:background="@drawable/bg_cyber_input"
+                        android:gravity="top|start"
+                        android:hint="Nhập mô tả hình ảnh..."
+                        android:padding="8dp"
+                        android:text="1girl, cyberpunk aesthetic, neon city night, masterpiece, highly detailed"
+                        android:textColor="#F8FAFC"
+                        android:textColorHint="#475569"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="Negative Prompt (Mặc định chuẩn Server PixAI):"
+                        android:textColor="#94A3B8"
+                        android:textSize="10sp" />
+
+                    <EditText
+                        android:id="@+id/etNegativePrompt"
+                        android:layout_width="match_parent"
+                        android:layout_height="45dp"
+                        android:layout_marginTop="3dp"
+                        android:background="@drawable/bg_cyber_input"
+                        android:gravity="top|start"
+                        android:padding="8dp"
+                        android:text="lowres, worst quality, low quality, bad anatomy, explicit"
+                        android:textColor="#94A3B8"
+                        android:textSize="10sp" />
+                </LinearLayout>
+
+                <!-- Row 6: Live Cost & Generate Button -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvCostBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="[Ước tính: 100 Credits]"
+                        android:textColor="#34D399"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" />
+
+                    <Button
+                        android:id="@+id/btnGenerate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="match_parent"
+                        android:background="@drawable/bg_cyber_btn_primary"
+                        android:paddingHorizontal="20dp"
+                        android:text="[KHỞI TẠO ẢNH AI]"
+                        android:textAllCaps="false"
+                        android:textColor="#FFFFFF"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvGenStatus"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Sẵn sàng khởi tạo."
+                    android:textColor="#94A3B8"
+                    android:textSize="10sp" />
+
+                <!-- Row 7: Result Output Display -->
+                <LinearLayout
+                    android:id="@+id/layoutResultCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_cyber_card"
+                    android:orientation="vertical"
+                    android:padding="10dp"
+                    android:visibility="gone">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="KẾT QUẢ KHỞI TẠO TRỰC TIẾP:"
+                        android:textColor="#38BDF8"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <ImageView
+                        android:id="@+id/ivResultPreview"
+                        android:layout_width="match_parent"
+                        android:layout_height="320dp"
+                        android:layout_marginTop="6dp"
+                        android:background="#090D16"
+                        android:scaleType="fitCenter" />
+
+                    <!-- Prompt gốc -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Prompt Gốc:"
+                            android:textColor="#38BDF8"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvResOriginalPrompt"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:textColor="#F8FAFC"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnCopyOriginalPrompt"
+                            android:layout_width="wrap_content"
+                            android:layout_height="28dp"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[Copy Gốc]"
+                            android:textAllCaps="false"
+                            android:textColor="#38BDF8"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+
+                    <!-- Prompt Server Sửa -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Server Đã Sửa:"
+                            android:textColor="#34D399"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/tvResServerPrompt"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:ellipsize="end"
+                            android:singleLine="true"
+                            android:textColor="#34D399"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnCopyServerPrompt"
+                            android:layout_width="wrap_content"
+                            android:layout_height="28dp"
+                            android:background="@drawable/bg_cyber_btn_secondary"
+                            android:text="[Copy Server]"
+                            android:textAllCaps="false"
+                            android:textColor="#34D399"
+                            android:textSize="9sp" />
+                    </LinearLayout>
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="30dp" />
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ================= TAB 2: QUẢN LÝ 44 TÀI KHOẢN ================= -->
+        <LinearLayout
+            android:id="@+id/layoutTabAccounts"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <!-- Action bar hàng loạt -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="36dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnBatchClaimDaily"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_cyber_btn_secondary"
+                    android:text="[Nhận Daily (+10K)]"
+                    android:textAllCaps="false"
+                    android:textColor="#34D399"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnBatchClaimFull"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_cyber_btn_secondary"
+                    android:text="[Full Thưởng (+80K)]"
+                    android:textAllCaps="false"
+                    android:textColor="#F59E0B"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnAutoReg"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="4dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_cyber_btn_secondary"
+                    android:text="[Reg Acc Mới (+80K)]"
+                    android:textAllCaps="false"
+                    android:textColor="#818CF8"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnSyncAllCredits"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:layout_marginStart="4dp"
+                    android:background="@drawable/bg_cyber_btn_secondary"
+                    android:paddingHorizontal="8dp"
+                    android:text="[Đồng Bộ]"
+                    android:textAllCaps="false"
+                    android:textColor="#38BDF8"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Danh sách tài khoản -->
+            <ListView
+                android:id="@+id/lvAccounts"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginTop="8dp"
+                android:divider="#1E293B"
+                android:dividerHeight="1dp" />
+        </LinearLayout>
+
+        <!-- ================= TAB 3: KHO LỊCH SỬ ================= -->
+        <LinearLayout
+            android:id="@+id/layoutTabHistory"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <ListView
+                android:id="@+id/lvHistory"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="#1E293B"
+                android:dividerHeight="1dp" />
+        </LinearLayout>
+
+    </FrameLayout>
+</LinearLayout>

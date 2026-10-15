@@ -1,0 +1,11 @@
+.cache_images/
+nexus_history.json
+release_apk/
+*.tmp*
+__pycache__/
+.gradle/
+build/
+app/build/
+local.properties
+.idea/
+*.iml
