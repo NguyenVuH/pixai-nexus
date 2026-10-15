@@ -129,7 +129,7 @@ def download_apk(repo, run_id, token):
                 return
 
     # Thử tải từ GitHub Releases
-    rel_data = curl_json(f'https://api.github.com/repos/{repo}/releases/tags/v1.0.0', token)
+    rel_data = curl_json(f'https://api.github.com/repos/{repo}/releases/latest', token)
     if rel_data and 'assets' in rel_data:
         for asset in rel_data['assets']:
             if asset.get('name', '').endswith('.apk'):

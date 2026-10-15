@@ -491,4 +491,22 @@ public class AccountStorage {
     public synchronized void addAccount(String email, String token, long quota) {
         addAccount(new AccountModel(email, token, quota));
     }
+
+    public boolean isProxyWebUiEnabled() { return prefs.getBoolean("security_proxy_web_ui", true); }
+    public boolean isAutoRotateProxyEnabled() { return prefs.getBoolean("security_auto_rotate_proxy", false); }
+    public List<String> getParsedProxyPool() {
+        List<String> list = new ArrayList<>();
+        String raw = getProxyAddress();
+        if (raw != null && !raw.trim().isEmpty()) {
+            list.add(raw.trim());
+        }
+        return list;
+    }
+    public boolean isDohEnabled() { return prefs.getBoolean("security_doh_enabled", true); }
+    public boolean isAntiDpiEnabled() { return prefs.getBoolean("security_anti_dpi_enabled", true); }
+    public boolean isStrictKillSwitchEnabled() { return prefs.getBoolean("security_kill_switch_enabled", false); }
+    public boolean isBlockWebRtcEnabled() { return prefs.getBoolean("security_block_webrtc", true); }
+    public boolean isSpoofFingerprintEnabled() { return prefs.getBoolean("security_spoof_fp", true); }
+    public boolean isBlockTrackersEnabled() { return prefs.getBoolean("security_block_trackers", true); }
+    public long getFingerprintSeed() { return prefs.getLong("security_fp_seed", 0L); }
 }
