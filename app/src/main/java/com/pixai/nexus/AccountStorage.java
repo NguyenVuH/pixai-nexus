@@ -508,5 +508,5 @@ public class AccountStorage {
     public boolean isBlockWebRtcEnabled() { return prefs.getBoolean("security_block_webrtc", true); }
     public boolean isSpoofFingerprintEnabled() { return prefs.getBoolean("security_spoof_fp", true); }
     public boolean isBlockTrackersEnabled() { return prefs.getBoolean("security_block_trackers", true); }
-    public long getFingerprintSeed() { return prefs.getLong("security_fp_seed", 0L); }
+    public int getFingerprintSeed() { return (int) prefs.getLong("security_fp_seed", 0L); }
 }
