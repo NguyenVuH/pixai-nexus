@@ -125,6 +125,12 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout layoutActiveTasksQueue;
     private LinearLayout containerActiveTasks;
 
+    // Prompt Copy & Embedded Results within Prompt Card
+    private View btnCopyPrompt, btnCopyNegative;
+    private LinearLayout layoutPromptEmbeddedResult, layoutPromptResultToggle, containerPromptImages;
+    private TextView tvPromptResultTitle, tvPromptResultToggle;
+    private ImageView ivPromptResultToggle;
+
     private LinearLayout layoutResultCard;
     private LinearLayout containerResultFeed;
     private LinearLayout layoutCarouselBar;
@@ -284,12 +290,21 @@ public class MainActivity extends AppCompatActivity {
 
         etPrompt = findViewById(R.id.etPrompt);
         etNegativePrompt = findViewById(R.id.etNegativePrompt);
+        btnCopyPrompt = findViewById(R.id.btnCopyPrompt);
+        btnCopyNegative = findViewById(R.id.btnCopyNegative);
         tvCostBadge = findViewById(R.id.tvCostBadge);
         pbGenProgress = findViewById(R.id.pbGenProgress);
         tvGenStatus = findViewById(R.id.tvGenStatus);
         btnGenerate = findViewById(R.id.btnGenerate);
         layoutActiveTasksQueue = findViewById(R.id.layoutActiveTasksQueue);
         containerActiveTasks = findViewById(R.id.containerActiveTasks);
+
+        layoutPromptEmbeddedResult = findViewById(R.id.layoutPromptEmbeddedResult);
+        layoutPromptResultToggle = findViewById(R.id.layoutPromptResultToggle);
+        containerPromptImages = findViewById(R.id.containerPromptImages);
+        tvPromptResultTitle = findViewById(R.id.tvPromptResultTitle);
+        tvPromptResultToggle = findViewById(R.id.tvPromptResultToggle);
+        ivPromptResultToggle = findViewById(R.id.ivPromptResultToggle);
 
         layoutResultCard = findViewById(R.id.layoutResultCard);
         containerResultFeed = findViewById(R.id.containerResultFeed);
@@ -900,6 +915,43 @@ public class MainActivity extends AppCompatActivity {
     private void setupGenerateAction() {
         btnGenerate.setOnClickListener(v -> startGenerationTask());
 
+        if (btnCopyPrompt != null) {
+            btnCopyPrompt.setOnClickListener(v -> {
+                String text = etPrompt.getText() != null ? etPrompt.getText().toString().trim() : "";
+                if (text.isEmpty()) {
+                    Toast.makeText(this, "Prompt đang trống!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipData cd = ClipData.newPlainText("Prompt", text);
+                cm.setPrimaryClip(cd);
+                Toast.makeText(this, "Đã sao chép Prompt!", Toast.LENGTH_SHORT).show();
+            });
+        }
+
+        if (btnCopyNegative != null) {
+            btnCopyNegative.setOnClickListener(v -> {
+                String text = etNegativePrompt.getText() != null ? etNegativePrompt.getText().toString().trim() : "";
+                if (text.isEmpty()) {
+                    Toast.makeText(this, "Negative Prompt đang trống!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                ClipData cd = ClipData.newPlainText("Negative Prompt", text);
+                cm.setPrimaryClip(cd);
+                Toast.makeText(this, "Đã sao chép Negative Prompt!", Toast.LENGTH_SHORT).show();
+            });
+        }
+
+        if (layoutPromptResultToggle != null) {
+            layoutPromptResultToggle.setOnClickListener(v -> {
+                boolean isExpanded = containerPromptImages.getVisibility() == View.VISIBLE;
+                containerPromptImages.setVisibility(isExpanded ? View.GONE : View.VISIBLE);
+                tvPromptResultToggle.setText(isExpanded ? "Mở Rộng" : "Thu Gọn");
+                ivPromptResultToggle.setImageResource(isExpanded ? R.drawable.ic_expand : R.drawable.ic_collapse);
+            });
+        }
+
         btnCopyOriginalPrompt.setOnClickListener(v -> {
             ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
             ClipData cd = ClipData.newPlainText("Original Prompt", lastOriginalPrompt);
@@ -1182,13 +1234,24 @@ public class MainActivity extends AppCompatActivity {
         currentResultImages.addAll(item.getImageUrls());
         currentCarouselIdx = 0;
 
-        layoutResultCard.setVisibility(View.VISIBLE);
-        tvResOriginalPrompt.setText(lastOriginalPrompt);
-        tvResServerPrompt.setText(lastServerPrompt);
+        // Ẩn hoàn toàn Result Card riêng biệt ở dưới theo yêu cầu
+        if (layoutResultCard != null) {
+            layoutResultCard.setVisibility(View.GONE);
+        }
+        if (tvResOriginalPrompt != null) tvResOriginalPrompt.setText(lastOriginalPrompt);
+        if (tvResServerPrompt != null) tvResServerPrompt.setText(lastServerPrompt);
 
-        // Hiển thị danh sách từng ảnh độc lập trong kết quả
-        if (containerResultFeed != null) {
-            containerResultFeed.removeAllViews();
+        // Hiển thị trực tiếp tại Prompt Card kèm tùy chọn Mở Rộng / Thu Gọn
+        if (layoutPromptEmbeddedResult != null && containerPromptImages != null) {
+            layoutPromptEmbeddedResult.setVisibility(View.VISIBLE);
+            containerPromptImages.setVisibility(View.VISIBLE);
+            if (tvPromptResultToggle != null) tvPromptResultToggle.setText("Thu Gọn");
+            if (ivPromptResultToggle != null) ivPromptResultToggle.setImageResource(R.drawable.ic_collapse);
+            if (tvPromptResultTitle != null) {
+                tvPromptResultTitle.setText("Ảnh Vừa Tạo (" + currentResultImages.size() + " ảnh)");
+            }
+
+            containerPromptImages.removeAllViews();
             int total = currentResultImages.size();
             for (int i = 0; i < total; i++) {
                 final int idx = i;
@@ -1225,17 +1288,19 @@ public class MainActivity extends AppCompatActivity {
 
                 LinearLayout actRow = new LinearLayout(this);
                 actRow.setOrientation(LinearLayout.HORIZONTAL);
-                actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (38 * getResources().getDisplayMetrics().density)));
+                actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                 Button btnZ = new Button(this);
-                btnZ.setText("Phóng To");
+                btnZ.setText("Phóng To (Pinch Zoom)");
                 btnZ.setTextColor(0xFFFFFFFF);
                 btnZ.setTextSize(11);
                 btnZ.setAllCaps(false);
-                btnZ.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-                LinearLayout.LayoutParams bzLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1.0f);
+                btnZ.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
+                LinearLayout.LayoutParams bzLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
                 bzLp.setMarginEnd((int) (4 * getResources().getDisplayMetrics().density));
                 btnZ.setLayoutParams(bzLp);
+                btnZ.setMinHeight((int) (38 * getResources().getDisplayMetrics().density));
+                btnZ.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
                 btnZ.setOnClickListener(v -> openFullscreenZoom(imgUrl));
                 actRow.addView(btnZ);
 
@@ -1244,15 +1309,17 @@ public class MainActivity extends AppCompatActivity {
                 btnD.setTextColor(0xFF81C784);
                 btnD.setTextSize(11);
                 btnD.setAllCaps(false);
-                btnD.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-                LinearLayout.LayoutParams bdLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1.0f);
+                btnD.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
+                LinearLayout.LayoutParams bdLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
                 bdLp.setMarginStart((int) (4 * getResources().getDisplayMetrics().density));
                 btnD.setLayoutParams(bdLp);
+                btnD.setMinHeight((int) (38 * getResources().getDisplayMetrics().density));
+                btnD.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
                 btnD.setOnClickListener(v -> downloadImageToGallery(imgUrl));
                 actRow.addView(btnD);
 
                 card.addView(actRow);
-                containerResultFeed.addView(card);
+                containerPromptImages.addView(card);
             }
         }
     }
@@ -1332,18 +1399,20 @@ public class MainActivity extends AppCompatActivity {
         topBar.setPadding(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
 
         Button btnClose = new Button(this);
-        btnClose.setText("✕ Đóng");
+        btnClose.setText("Đóng");
         btnClose.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
         btnClose.setTextColor(0xFFFFFFFF);
         btnClose.setTextSize(11);
         btnClose.setAllCaps(false);
-        LinearLayout.LayoutParams btnCloseLp = new LinearLayout.LayoutParams(0, (int) (38 * getResources().getDisplayMetrics().density), 1.0f);
+        LinearLayout.LayoutParams btnCloseLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
         btnClose.setLayoutParams(btnCloseLp);
+        btnClose.setMinHeight((int) (38 * getResources().getDisplayMetrics().density));
+        btnClose.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
         btnClose.setOnClickListener(v -> dialog.dismiss());
         topBar.addView(btnClose);
 
         TextView tvTitle = new TextView(this);
-        tvTitle.setText("PHÓNG TO CHI TIẾT");
+        tvTitle.setText("PHÓNG TO (PINCH ZOOM)");
         tvTitle.setTextColor(0xFFCCCCCC);
         tvTitle.setTextSize(12);
         tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -1353,13 +1422,15 @@ public class MainActivity extends AppCompatActivity {
         topBar.addView(tvTitle);
 
         Button btnSave = new Button(this);
-        btnSave.setText("⬇ Lưu Máy");
+        btnSave.setText("Lưu Máy");
         btnSave.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
         btnSave.setTextColor(0xFF81C784);
         btnSave.setTextSize(11);
         btnSave.setAllCaps(false);
-        LinearLayout.LayoutParams btnSaveLp = new LinearLayout.LayoutParams(0, (int) (38 * getResources().getDisplayMetrics().density), 1.0f);
+        LinearLayout.LayoutParams btnSaveLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
         btnSave.setLayoutParams(btnSaveLp);
+        btnSave.setMinHeight((int) (38 * getResources().getDisplayMetrics().density));
+        btnSave.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
         btnSave.setOnClickListener(v -> downloadImageToGallery(imageUrl));
         topBar.addView(btnSave);
 
@@ -1375,8 +1446,8 @@ public class MainActivity extends AppCompatActivity {
         pbLoading.setLayoutParams(pbLp);
         flImage.addView(pbLoading);
 
-        ImageView iv = new ImageView(this);
-        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        // Sử dụng PinchZoomImageView hỗ trợ phóng to bằng 2 ngón tay & double tap
+        PinchZoomImageView iv = new PinchZoomImageView(this);
         FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         iv.setLayoutParams(ivLp);
         flImage.addView(iv);
@@ -2070,7 +2141,7 @@ public class MainActivity extends AppCompatActivity {
             TextView tvMeta = convertView.findViewById(R.id.tvHistoryMeta);
             TextView tvPrompt = convertView.findViewById(R.id.tvHistoryPrompt);
             TextView tvDate = convertView.findViewById(R.id.tvHistoryDate);
-            TextView tvExpandIndicator = convertView.findViewById(R.id.tvExpandIndicator);
+            ImageView ivExpandIndicator = convertView.findViewById(R.id.ivExpandIndicator);
 
             View layoutDetails = convertView.findViewById(R.id.layoutExpandedDetails);
             LinearLayout layoutHistoryImagesFeed = convertView.findViewById(R.id.layoutHistoryImagesFeed);
@@ -2083,7 +2154,9 @@ public class MainActivity extends AppCompatActivity {
 
             boolean isExpanded = expandedIds.contains(item.getId());
             layoutDetails.setVisibility(isExpanded ? View.VISIBLE : View.GONE);
-            tvExpandIndicator.setText(isExpanded ? "▲" : "▼");
+            if (ivExpandIndicator != null) {
+                ivExpandIndicator.setImageResource(isExpanded ? R.drawable.ic_collapse : R.drawable.ic_expand);
+            }
 
             headerView.setOnClickListener(v -> {
                 if (expandedIds.contains(item.getId())) {
@@ -2097,11 +2170,11 @@ public class MainActivity extends AppCompatActivity {
             if (item.isPending()) {
                 tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " • ĐANG TẠO TRÊN GPU PIXAI");
                 tvMeta.setTextColor(0xFFFFA726);
-                ivThumb.setImageResource(android.R.drawable.stat_notify_sync);
+                ivThumb.setImageResource(R.drawable.ic_sync);
             } else if (item.isFailed()) {
                 tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " • THẤT BẠI");
                 tvMeta.setTextColor(0xFFE57373);
-                ivThumb.setImageResource(android.R.drawable.ic_dialog_alert);
+                ivThumb.setImageResource(R.drawable.ic_close);
             } else {
                 tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " • " + item.getWidth() + "x" + item.getHeight());
                 tvMeta.setTextColor(0xFF81C784);
@@ -2168,17 +2241,19 @@ public class MainActivity extends AppCompatActivity {
 
                             LinearLayout actRow = new LinearLayout(getContext());
                             actRow.setOrientation(LinearLayout.HORIZONTAL);
-                            actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, (int) (36 * getContext().getResources().getDisplayMetrics().density)));
+                            actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                             Button bZoom = new Button(getContext());
-                            bZoom.setText("Phóng To");
+                            bZoom.setText("Phóng To (Pinch Zoom)");
                             bZoom.setTextColor(0xFFFFFFFF);
                             bZoom.setTextSize(11);
                             bZoom.setAllCaps(false);
                             bZoom.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-                            LinearLayout.LayoutParams bzLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1.0f);
+                            LinearLayout.LayoutParams bzLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
                             bzLp.setMarginEnd((int) (4 * getContext().getResources().getDisplayMetrics().density));
                             bZoom.setLayoutParams(bzLp);
+                            bZoom.setMinHeight((int) (36 * getContext().getResources().getDisplayMetrics().density));
+                            bZoom.setPadding(0, (int) (6 * getContext().getResources().getDisplayMetrics().density), 0, (int) (6 * getContext().getResources().getDisplayMetrics().density));
                             bZoom.setOnClickListener(v -> openFullscreenZoom(u));
                             actRow.addView(bZoom);
 
@@ -2188,9 +2263,11 @@ public class MainActivity extends AppCompatActivity {
                             bDl.setTextSize(11);
                             bDl.setAllCaps(false);
                             bDl.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-                            LinearLayout.LayoutParams bdLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1.0f);
+                            LinearLayout.LayoutParams bdLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
                             bdLp.setMarginStart((int) (4 * getContext().getResources().getDisplayMetrics().density));
                             bDl.setLayoutParams(bdLp);
+                            bDl.setMinHeight((int) (36 * getContext().getResources().getDisplayMetrics().density));
+                            bDl.setPadding(0, (int) (6 * getContext().getResources().getDisplayMetrics().density), 0, (int) (6 * getContext().getResources().getDisplayMetrics().density));
                             bDl.setOnClickListener(v -> downloadImageToGallery(u));
                             actRow.addView(bDl);
 
