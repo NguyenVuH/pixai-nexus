@@ -82,16 +82,16 @@ MODELS = {
         "modelId": "2050048243034896798",
         "profile": "flash",
         "hasNegative": False,
-        "cost1": 100,
-        "cost4": 400
+        "cost1": 1900,
+        "cost4": 4400
     },
     "pro": {
         "name": "Tsubaki 3 PRO (Chất Lượng)",
         "modelId": "2024383379556065549",
         "profile": "pro",
         "hasNegative": True,
-        "cost1": 4400,
-        "cost4": 17600
+        "cost1": 4000,
+        "cost4": 16000
     },
     "ultra": {
         "name": "Tsubaki 3 ULTRA (Đỉnh Cao)",
@@ -578,7 +578,7 @@ class PixAiNexusStudio(tk.Tk):
         grp_action = tk.Frame(scrollable_frame, bg=self.c_bg)
         grp_action.pack(fill="x", pady=(4, 0))
 
-        self.lbl_cost_badge = tk.Label(grp_action, text="Chi phí: 100 CR | Đang kiểm tra tài khoản khả dụng...", bg=self.c_bg, fg=self.c_success, font=("Segoe UI", 10, "bold"))
+        self.lbl_cost_badge = tk.Label(grp_action, text="Chi phí: 1,900 CR | Đang kiểm tra tài khoản khả dụng...", bg=self.c_bg, fg=self.c_success, font=("Segoe UI", 10, "bold"))
         self.lbl_cost_badge.pack(anchor="w")
 
         self.btn_generate = tk.Button(grp_action, text="KHỞI TẠO ẢNH NGAY", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", activeforeground="#000000", relief="solid", bd=1, pady=10, font=("Segoe UI", 11, "bold"), command=self.on_start_generate)
@@ -587,6 +587,13 @@ class PixAiNexusStudio(tk.Tk):
         self.progress_bar = ttk.Progressbar(grp_action, orient="horizontal", mode="indeterminate")
         self.lbl_gen_step = tk.Label(grp_action, text="Sẵn sàng khởi tạo.", bg=self.c_bg, fg=self.c_muted, font=("Segoe UI", 9))
         self.lbl_gen_step.pack(anchor="w")
+
+        # Active Tasks Queue (Old tasks on top, new tasks below)
+        self.grp_queue = tk.LabelFrame(scrollable_frame, text=" Tiến Trình Tạo Ảnh Đang Chạy ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=8, pady=6)
+        self.grp_queue.pack(fill="x", pady=(8, 4))
+        self.queue_container = tk.Frame(self.grp_queue, bg=self.c_card)
+        self.queue_container.pack(fill="x")
+        self.grp_queue.pack_forget()
 
         # ================= CỘT PHẢI: KHU VỰC PREVIEW ẢNH & CAROUSEL =================
         right_pane = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
@@ -1107,11 +1114,8 @@ class PixAiNexusStudio(tk.Tk):
             self.update_header()
             self.log_message(f"Tự động đổi sang tài khoản đủ số dư: {eligible_acc.get('email')} ({eligible_acc.get('credits', 0):,} CR)", "info")
 
-        self.is_generating = True
-        self.btn_generate.config(state="disabled")
-        self.progress_bar.pack(fill="x", pady=(2, 4))
-        self.progress_bar.start(10)
-        self.lbl_gen_step.config(text="Bước 1/4: Đang chuẩn bị phiên làm việc & Mở khóa 18+ (NSFW)...", fg=self.c_text)
+        # Nút tạo ảnh không bị khóa, cho phép bấm tạo tiếp các tiến trình song song!
+        self.lbl_gen_step.config(text=f"Đang gửi lệnh tạo tác vụ mới tới GPU PixAI ({prof.upper()})...", fg=self.c_text)
 
         w, h, _ = self.get_selected_dimensions()
         neg = self.txt_negative.get("1.0", "end").strip()
@@ -1129,15 +1133,13 @@ class PixAiNexusStudio(tk.Tk):
             unblur_nsfw_for_account(token, proxy=proxy, proof_collector=proof)
             self.after(0, lambda: self.log_message(f"Xác nhận 18+ cho {account.get('email')}: {''.join(proof)}", "info"))
 
-            self.after(0, lambda: self.lbl_gen_step.config(text=f"Bước 2/4: Đang gửi lệnh khởi tạo tới GPU PixAI ({profile.upper()})..."))
-
             model_id = MODELS[profile]["modelId"]
             params = {
                 "modelId": model_id,
                 "inferenceProfile": profile,
                 "width": width,
                 "height": height,
-                "priority": 0,
+                "priority": 1000, # Ưu tiên chuẩn web PixAI kết xuất siêu tốc (~24s)
                 "prompts": prompt,
                 "seed": "",
                 "batchSize": batch_size,
@@ -1179,7 +1181,17 @@ class PixAiNexusStudio(tk.Tk):
                 if "insufficient balance" in err_msg.lower() or "balance" in err_msg.lower():
                     account["credits"] = 0
                     self.save_accounts()
-                    self.after(0, lambda: self.on_generation_failed("Tài khoản hết Credit trên máy chủ PixAI!"))
+                    # Tự động xoay sang tài khoản khác có đủ credit
+                    next_acc = None
+                    for a in self.accounts:
+                        if a.get("credits", 0) >= cost and a.get("token") and a.get("email") != account.get("email"):
+                            next_acc = a
+                            break
+                    if next_acc:
+                        self.after(0, lambda: self.log_message(f"Tài khoản hết credit, tự xoay sang {next_acc.get('email')}", "warning"))
+                        self._generate_worker(next_acc, prompt, neg, profile, batch_size, width, height, context_ids, cost)
+                        return
+                    self.after(0, lambda: self.on_generation_failed("Toàn bộ tài khoản đã hết Credit trên PixAI!"))
                     return
                 self.after(0, lambda msg=err_msg: self.on_generation_failed(f"Máy chủ từ chối: {msg}"))
                 return
@@ -1190,9 +1202,72 @@ class PixAiNexusStudio(tk.Tk):
                 return
 
             task_id = task_obj["id"]
+            paid_credit = task_obj.get("paidCredit", cost)
 
-            # Polling kết quả chờ render
-            poll_query = """query getTaskMedia($id: ID!) {
+            # Trừ credit tài khoản
+            account["credits"] = max(0, account.get("credits", 0) - paid_credit)
+            self.save_accounts()
+            self.after(0, self.update_header)
+            self.after(0, self.update_live_cost)
+
+            # LƯU NGAY VÀO LỊCH SỬ MÃ HÓA VỚI STATUS PENDING (ĐẢM BẢO KHÔNG BỊ MẤT)
+            hist_item = {
+                "id": task_id,
+                "taskId": task_id,
+                "status": "PENDING",
+                "timestamp": int(time.time() * 1000),
+                "imageUrl": "",
+                "imageUrls": [],
+                "originalPrompt": prompt,
+                "serverPrompt": "Đang kết xuất trên GPU PixAI...",
+                "modelName": "Tsubaki 3",
+                "profile": profile,
+                "isReal": self.current_style.get() == "real",
+                "seed": 0,
+                "width": width,
+                "height": height
+            }
+            self.history.insert(0, hist_item)
+            save_encrypted_history(self.history)
+
+            self.after(0, lambda: self.log_message(f"Đã tạo Task #{task_id} ({profile.upper()}). Đã lưu vào lịch sử.", "info"))
+            self.after(0, lambda: self.lbl_gen_step.config(text=f"Task #{task_id[-6:]} đã vào hàng đợi GPU PixAI.", fg=self.c_success))
+
+            # Thêm card vào hàng đợi UI (Cũ ở trên, Mới ở dưới)
+            self.after(0, lambda: self.attach_task_to_queue_ui(hist_item, token, proxy, cost))
+
+        except Exception as e:
+            self.after(0, lambda err=str(e): self.on_generation_failed(f"Lỗi ngoại lệ: {err}"))
+
+    def attach_task_to_queue_ui(self, hist_item, token, proxy, cost):
+        self.grp_queue.pack(fill="x", pady=(8, 4))
+
+        task_id = hist_item["id"]
+        card = tk.Frame(self.queue_container, bg=self.c_card, bd=1, relief="solid", padx=8, pady=6)
+        card.pack(fill="x", pady=2) # Tự động nối vào cuối để cũ ở trên, mới ở dưới
+
+        top_f = tk.Frame(card, bg=self.c_card)
+        top_f.pack(fill="x")
+
+        lbl_id = tk.Label(top_f, text=f"Task #{task_id[-8:]} • {hist_item['profile'].upper()} • {hist_item['width']}x{hist_item['height']}", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"))
+        lbl_id.pack(side="left")
+
+        lbl_badge = tk.Label(top_f, text="Đang chờ GPU...", bg=self.c_card, fg=self.c_warning, font=("Segoe UI", 8, "bold"))
+        lbl_badge.pack(side="right")
+
+        lbl_p = tk.Label(card, text=hist_item["originalPrompt"], bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8), anchor="w")
+        lbl_p.pack(fill="x", pady=(2, 4))
+
+        pb = ttk.Progressbar(card, orient="horizontal", mode="indeterminate")
+        pb.pack(fill="x", pady=(2, 4))
+        pb.start(10)
+
+        # Polling ngầm riêng biệt không chặn UI
+        threading.Thread(target=self._poll_task_worker, args=(card, pb, lbl_badge, hist_item, token, proxy, cost), daemon=True).start()
+
+    def _poll_task_worker(self, card, pb, lbl_badge, hist_item, token, proxy, cost):
+        task_id = hist_item["id"]
+        poll_query = """query getTaskMedia($id: ID!) {
   task(id: $id) {
     id
     status
@@ -1207,20 +1282,24 @@ class PixAiNexusStudio(tk.Tk):
     }
   }
 }"""
-            poll_payload = {"query": poll_query, "variables": {"id": task_id}}
+        poll_payload = {"query": poll_query, "variables": {"id": task_id}}
 
-            start_t = time.time()
-            while time.time() - start_t < 300: # 300s timeout
-                time.sleep(2.5)
-                elapsed = int(time.time() - start_t)
-                self.after(0, lambda s=elapsed: self.lbl_gen_step.config(text=f"Bước 3/4: Đang render trên GPU PixAI (Đã chờ {s}s)..."))
+        start_t = time.time()
+        while True:
+            time.sleep(2.5)
+            elapsed = int(time.time() - start_t)
 
-                poll_res = http_graphql(poll_payload, token, proxy=proxy, timeout=20)
+            try:
+                poll_res = http_graphql(poll_payload, token, proxy=proxy, timeout=15)
                 t_node = poll_res.get("data", {}).get("task")
                 if t_node:
                     status = t_node.get("status", "").lower()
-                    if status == "completed":
-                        server_prompt = t_node.get("parameters", {}).get("prompts", prompt)
+                    if status == "running":
+                        self.after(0, lambda s=elapsed: lbl_badge.config(text=f"Đang render ({s}s)...", fg=self.c_info))
+                    elif status == "waiting":
+                        self.after(0, lambda s=elapsed: lbl_badge.config(text=f"Đang chờ GPU ({s}s)...", fg=self.c_warning))
+                    elif status == "completed":
+                        server_prompt = t_node.get("parameters", {}).get("prompts", hist_item["originalPrompt"])
                         seed = t_node.get("outputs", {}).get("seed", 0)
                         urls = []
                         media = t_node.get("media", {})
@@ -1230,18 +1309,62 @@ class PixAiNexusStudio(tk.Tk):
                         if not urls and media.get("urls"):
                             urls.append(media["urls"][0].get("url"))
 
-                        self.after(0, lambda u=urls, sp=server_prompt, sd=seed: self.on_generation_success(account, prompt, sp, sd, u, profile, width, height, cost))
+                        # Cập nhật lịch sử mã hóa
+                        hist_item["status"] = "COMPLETED"
+                        hist_item["imageUrls"] = urls
+                        hist_item["imageUrl"] = urls[0] if urls else ""
+                        hist_item["serverPrompt"] = server_prompt
+                        hist_item["seed"] = seed
+                        save_encrypted_history(self.history)
+
+                        self.after(0, lambda u=urls, sp=server_prompt, sd=seed, el=elapsed: self.on_task_finished_ui(card, pb, lbl_badge, hist_item, u, sp, sd, el))
                         return
                     elif status in ["failed", "error"]:
-                        self.after(0, lambda: self.on_generation_failed(f"GPU PixAI báo tác vụ thất bại ({status})"))
+                        hist_item["status"] = "FAILED"
+                        save_encrypted_history(self.history)
+                        self.after(0, lambda: pb.stop())
+                        self.after(0, lambda: pb.pack_forget())
+                        self.after(0, lambda: lbl_badge.config(text="Thất bại", fg=self.c_danger))
+                        self.after(0, lambda: self.log_message(f"Task #{task_id} thất bại trên GPU PixAI ({status})", "error"))
                         return
+            except Exception:
+                pass
 
-            self.after(0, lambda: self.on_generation_failed("Quá thời gian chờ (Timeout 300s) kết xuất trên GPU PixAI!"))
+            if elapsed > 1800: # 30 phút tối đa
+                break
 
-        except Exception as e:
-            self.after(0, lambda err=str(e): self.on_generation_failed(f"Lỗi ngoại lệ: {err}"))
+    def on_task_finished_ui(self, card, pb, lbl_badge, hist_item, urls, server_prompt, seed, elapsed):
+        pb.stop()
+        pb.pack_forget()
+        lbl_badge.config(text=f"Hoàn tất ({elapsed}s)", fg=self.c_success)
 
-    def on_generation_success(self, account, orig_prompt, server_prompt, seed, urls, profile, width, height, cost):
+        # Nút hành động nhanh trên card
+        act_f = tk.Frame(card, bg=self.c_card)
+        act_f.pack(fill="x", pady=(2, 0))
+
+        if urls:
+            first_url = urls[0]
+            btn_view = tk.Button(act_f, text="Xem Toàn Màn Hình", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=6, pady=2, font=("Segoe UI", 8), command=lambda u=first_url: self.open_zoom_window(u))
+            btn_view.pack(side="left")
+
+            btn_apply = tk.Button(act_f, text="Đưa Lên Màn Chính", bg=self.c_input, fg=self.c_success, relief="solid", bd=1, padx=6, pady=2, font=("Segoe UI", 8, "bold"), command=lambda: self.apply_task_to_preview(hist_item))
+            btn_apply.pack(side="left", padx=(4, 0))
+
+            # Tự động nạp vào màn hình preview chính nếu chưa có ảnh
+            self.apply_task_to_preview(hist_item)
+
+        self.log_message(f"Task #{hist_item['id']} hoàn thành 100%! Đã nhận {len(urls)} ảnh.", "info")
+
+    def apply_task_to_preview(self, hist_item):
+        self.last_original_prompt = hist_item["originalPrompt"]
+        self.last_server_prompt = hist_item["serverPrompt"]
+        self.lbl_orig_prompt.config(text=self.last_original_prompt)
+        self.lbl_server_prompt.config(text=self.last_server_prompt)
+        self.generated_images = hist_item.get("imageUrls", [])
+        self.current_image_idx = 0
+        if self.generated_images:
+            self.load_image_to_preview(self.generated_images[0])
+            self.update_carousel_controls()
         self.is_generating = False
         self.progress_bar.stop()
         self.progress_bar.pack_forget()

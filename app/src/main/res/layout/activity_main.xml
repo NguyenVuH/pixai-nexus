@@ -885,6 +885,31 @@
                         android:textColor="#121212"
                         android:textSize="14sp"
                         android:textStyle="bold" />
+
+                    <!-- Dynamic Active Tasks Queue: Old tasks on top, new tasks below -->
+                    <LinearLayout
+                        android:id="@+id/layoutActiveTasksQueue"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="14dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="Tiến Trình Tạo Ảnh Đang Chạy"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold" />
+
+                        <LinearLayout
+                            android:id="@+id/containerActiveTasks"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+                    </LinearLayout>
                 </LinearLayout>
 
                 <!-- Card: Kết Quả & Carousel -->

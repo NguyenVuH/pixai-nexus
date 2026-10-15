@@ -338,6 +338,36 @@ public class AccountStorage {
         saveHistory(list);
     }
 
+    public synchronized void updateHistoryItem(HistoryItem item) {
+        if (item == null) return;
+        List<HistoryItem> list = getHistory();
+        boolean found = false;
+        for (int i = 0; i < list.size(); i++) {
+            HistoryItem cur = list.get(i);
+            if ((cur.getId() != null && cur.getId().equals(item.getId())) ||
+                (cur.getTaskId() != null && cur.getTaskId().equals(item.getTaskId()))) {
+                list.set(i, item);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            list.add(0, item);
+        }
+        saveHistory(list);
+    }
+
+    public synchronized List<HistoryItem> getPendingHistoryItems() {
+        List<HistoryItem> pending = new ArrayList<>();
+        List<HistoryItem> all = getHistory();
+        for (HistoryItem item : all) {
+            if (item.isPending()) {
+                pending.add(item);
+            }
+        }
+        return pending;
+    }
+
     public synchronized void clearHistory() {
         File file = new File(context.getFilesDir(), HISTORY_FILE);
         if (file.exists()) file.delete();

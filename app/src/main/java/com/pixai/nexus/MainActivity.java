@@ -111,6 +111,8 @@ public class MainActivity extends AppCompatActivity {
     private ProgressBar pbGenProgress;
     private TextView tvGenStatus;
     private Button btnGenerate;
+    private LinearLayout layoutActiveTasksQueue;
+    private LinearLayout containerActiveTasks;
 
     private LinearLayout layoutResultCard;
     private LinearLayout layoutCarouselBar;
@@ -199,6 +201,7 @@ public class MainActivity extends AppCompatActivity {
         refreshHeader();
         updateDimensionsAndPreview();
         updateCostBadge();
+        resumePendingTasks();
         logMessage("Khởi động PixAI Nexus Studio phiên bản Monochrome Dark thành công.");
     }
 
@@ -269,6 +272,8 @@ public class MainActivity extends AppCompatActivity {
         pbGenProgress = findViewById(R.id.pbGenProgress);
         tvGenStatus = findViewById(R.id.tvGenStatus);
         btnGenerate = findViewById(R.id.btnGenerate);
+        layoutActiveTasksQueue = findViewById(R.id.layoutActiveTasksQueue);
+        containerActiveTasks = findViewById(R.id.containerActiveTasks);
 
         layoutResultCard = findViewById(R.id.layoutResultCard);
         layoutCarouselBar = findViewById(R.id.layoutCarouselBar);
@@ -764,8 +769,8 @@ public class MainActivity extends AppCompatActivity {
 
     private long calculateRequiredCost() {
         if ("ultra".equalsIgnoreCase(currentProfile)) return 5500;
-        if ("pro".equalsIgnoreCase(currentProfile)) return 4400;
-        return (batchCount == 4) ? 400 : 100;
+        if ("pro".equalsIgnoreCase(currentProfile)) return 4000;
+        return (batchCount == 4) ? 4400 : 1900;
     }
 
     // --- MULTI-IMAGE PICKER & GALLERY ---
@@ -967,8 +972,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startGenerationTask() {
-        if (isGenerating) return;
-
         String prompt = etPrompt.getText().toString().trim();
         if (prompt.isEmpty()) {
             Toast.makeText(this, "Vui lòng nhập câu lệnh Prompt!", Toast.LENGTH_SHORT).show();
@@ -990,30 +993,26 @@ public class MainActivity extends AppCompatActivity {
             logMessage("Tự động chuyển sang tài khoản đủ số dư: " + account.getEmail() + " (" + account.getCredits() + " CR)");
         }
 
-        isGenerating = true;
-        btnGenerate.setEnabled(false);
-        pbGenProgress.setVisibility(View.VISIBLE);
-        tvGenStatus.setText("Bước 1/4: Đang chuẩn bị phiên làm việc & Mở khóa 18+ (NSFW)...");
-        tvGenStatus.setTextColor(0xFFFFFFFF);
-
         String neg = etNegativePrompt.getText().toString().trim();
         String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
-
         List<String> contextList = new ArrayList<>(attachedMediaIds);
 
-        executor.execute(() -> executeGenerationWithRetry(account, prompt, neg, proxy, requiredCost, contextList));
+        // Nút Tạo Ảnh không bị khóa, cho phép bấm tạo tiếp các tiến trình song song!
+        tvGenStatus.setText("Đang khởi tạo tác vụ mới trên GPU PixAI (" + currentProfile.toUpperCase() + ")...");
+        tvGenStatus.setTextColor(0xFFFFFFFF);
+
+        executor.execute(() -> launchTaskPipeline(account, prompt, neg, proxy, requiredCost, contextList));
     }
 
-    private void executeGenerationWithRetry(AccountModel account, String prompt, String neg, String proxy, long requiredCost, List<String> contextList) {
+    private void launchTaskPipeline(AccountModel account, String prompt, String neg, String proxy, long requiredCost, List<String> contextList) {
         try {
-            // Mở khóa 18+ với bằng chứng GraphQL
+            // Mở khóa 18+ ngầm
             StringBuilder proof = new StringBuilder();
             PixAiApiHelper.unblurNsfw(account.getToken(), proxy, proof);
             mainHandler.post(() -> logMessage("Xác thực 18+ cho " + account.getEmail() + ": " + proof.toString()));
 
-            mainHandler.post(() -> tvGenStatus.setText("Bước 2/4: Đang gửi lệnh khởi tạo tới GPU PixAI (" + currentProfile.toUpperCase() + ")..."));
-
-            PixAiApiHelper.TaskResult res = PixAiApiHelper.createAndPollGenerationTask(
+            // Gửi GraphQL tạo tác vụ với priority 1000
+            PixAiApiHelper.CreateTaskResult cr = PixAiApiHelper.createGenerationTask(
                     account.getToken(),
                     currentProfile,
                     isReal,
@@ -1024,12 +1023,11 @@ public class MainActivity extends AppCompatActivity {
                     prompt,
                     neg,
                     contextList,
-                    proxy,
-                    (msg, sec) -> mainHandler.post(() -> tvGenStatus.setText("Bước 3/4: " + msg))
+                    proxy
             );
 
-            if (res.insufficientBalance) {
-                mainHandler.post(() -> logMessage("Tài khoản " + account.getEmail() + " hết Credit trên server! Tự động xoay sang tài khoản khác..."));
+            if (cr.insufficientBalance) {
+                mainHandler.post(() -> logMessage("Tài khoản " + account.getEmail() + " không đủ credit trên máy chủ PixAI! Đang tự động xoay tài khoản..."));
                 account.setCredits(0);
                 storage.addAccount(account);
 
@@ -1038,16 +1036,13 @@ public class MainActivity extends AppCompatActivity {
                     storage.setActiveEmail(nextAcc.getEmail());
                     mainHandler.post(() -> {
                         refreshHeader();
-                        tvGenStatus.setText("Đang tự động đổi sang: " + nextAcc.getEmail() + "...");
+                        updateCostBadge();
                     });
-                    executeGenerationWithRetry(nextAcc, prompt, neg, proxy, requiredCost, contextList);
+                    launchTaskPipeline(nextAcc, prompt, neg, proxy, requiredCost, contextList);
                     return;
                 } else {
                     mainHandler.post(() -> {
-                        isGenerating = false;
-                        btnGenerate.setEnabled(true);
-                        pbGenProgress.setVisibility(View.GONE);
-                        tvGenStatus.setText("Thất bại: Toàn bộ tài khoản đã cạn kiệt Credit!");
+                        tvGenStatus.setText("Lỗi: Toàn bộ tài khoản đã cạn kiệt Credit!");
                         tvGenStatus.setTextColor(0xFFE57373);
                         Toast.makeText(this, "Tất cả tài khoản đều đã hết Credit!", Toast.LENGTH_LONG).show();
                     });
@@ -1055,65 +1050,183 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
 
-            mainHandler.post(() -> {
-                isGenerating = false;
-                btnGenerate.setEnabled(true);
-                pbGenProgress.setVisibility(View.GONE);
-
-                if (res.success && !res.imageUrls.isEmpty()) {
-                    tvGenStatus.setText("Bước 4/4: Khởi tạo hoàn tất 100%! Tác vụ thành công.");
-                    tvGenStatus.setTextColor(0xFF81C784);
-
-                    account.setCredits(Math.max(0, account.getCredits() - requiredCost));
-                    storage.addAccount(account);
-                    refreshHeader();
-                    updateCostBadge();
-
-                    lastOriginalPrompt = res.originalPrompt;
-                    lastServerPrompt = res.serverPrompt;
-                    currentResultImages.clear();
-                    currentResultImages.addAll(res.imageUrls);
-                    currentCarouselIdx = 0;
-
-                    for (String url : res.imageUrls) {
-                        HistoryItem hist = new HistoryItem(
-                                url,
-                                res.originalPrompt,
-                                res.serverPrompt,
-                                "Tsubaki 3",
-                                currentProfile,
-                                isReal,
-                                res.seed,
-                                selectedWidth,
-                                selectedHeight
-                        );
-                        storage.addHistoryItem(hist);
-                    }
-
-                    layoutResultCard.setVisibility(View.VISIBLE);
-                    tvResOriginalPrompt.setText(res.originalPrompt);
-                    tvResServerPrompt.setText(res.serverPrompt);
-                    updateCarouselDisplay();
-
-                    logMessage("Khởi tạo thành công " + res.imageUrls.size() + " ảnh! Đã lưu vào kho lịch sử mã hóa.");
-                    Toast.makeText(this, "Tạo ảnh thành công!", Toast.LENGTH_SHORT).show();
-                } else {
-                    tvGenStatus.setText("Thất bại: " + res.errorMessage);
+            if (!cr.success || cr.taskId == null || cr.taskId.isEmpty()) {
+                mainHandler.post(() -> {
+                    tvGenStatus.setText("Thất bại: " + cr.errorMessage);
                     tvGenStatus.setTextColor(0xFFE57373);
-                    logMessage("Lỗi tạo ảnh: " + res.errorMessage);
-                    Toast.makeText(this, "Lỗi: " + res.errorMessage, Toast.LENGTH_LONG).show();
-                }
+                    logMessage("Khởi tạo thất bại: " + cr.errorMessage);
+                    Toast.makeText(this, "Lỗi tạo task: " + cr.errorMessage, Toast.LENGTH_LONG).show();
+                });
+                return;
+            }
+
+            // Trừ credit đã sử dụng và cập nhật UI
+            long deducted = (cr.paidCredit > 0) ? cr.paidCredit : requiredCost;
+            account.setCredits(Math.max(0, account.getCredits() - deducted));
+            storage.addAccount(account);
+            mainHandler.post(() -> {
+                refreshHeader();
+                updateCostBadge();
             });
+
+            // LƯU NGAY VÀO KHO LỊCH SỬ MÃ HÓA VỚI TRẠNG THÁI PENDING (KHÔNG SỢ MẤT)
+            final String taskId = cr.taskId;
+            HistoryItem pendingItem = new HistoryItem(taskId, prompt, "Tsubaki 3", currentProfile, isReal, selectedWidth, selectedHeight);
+            storage.addHistoryItem(pendingItem);
+
+            mainHandler.post(() -> {
+                refreshHistoryList();
+                logMessage("Đã khởi tạo thành công Task #" + taskId + " (" + currentProfile.toUpperCase() + "). Đã lưu vào lịch sử.");
+                tvGenStatus.setText("Task #" + taskId.substring(Math.max(0, taskId.length() - 6)) + " đã vào hàng đợi GPU.");
+                tvGenStatus.setTextColor(0xFF81C784);
+
+                // Thêm thẻ tiến trình vào danh sách (Cũ ở trên, Mới ở dưới)
+                attachTaskCardToQueue(pendingItem, account.getToken(), proxy);
+            });
+
         } catch (Exception e) {
             mainHandler.post(() -> {
-                isGenerating = false;
-                btnGenerate.setEnabled(true);
-                pbGenProgress.setVisibility(View.GONE);
-                tvGenStatus.setText("Lỗi Exception: " + e.getMessage());
+                tvGenStatus.setText("Lỗi kết nối: " + e.getMessage());
                 tvGenStatus.setTextColor(0xFFE57373);
                 logMessage("Lỗi ngoại lệ: " + e.getMessage());
             });
         }
+    }
+
+    private void attachTaskCardToQueue(HistoryItem item, String token, String proxy) {
+        layoutActiveTasksQueue.setVisibility(View.VISIBLE);
+
+        View card = LayoutInflater.from(this).inflate(R.layout.item_active_task, containerActiveTasks, false);
+        TextView tvHeader = card.findViewById(R.id.tvTaskHeader);
+        TextView tvBadge = card.findViewById(R.id.tvTaskStatusBadge);
+        TextView tvPrompt = card.findViewById(R.id.tvTaskPrompt);
+        ProgressBar pb = card.findViewById(R.id.pbTaskProgress);
+        LinearLayout layoutResult = card.findViewById(R.id.layoutTaskResult);
+        ImageView ivThumb = card.findViewById(R.id.ivTaskThumbnail);
+        Button btnZoom = card.findViewById(R.id.btnTaskZoom);
+        Button btnApply = card.findViewById(R.id.btnTaskApply);
+
+        String tidShort = item.getTaskId();
+        if (tidShort.length() > 8) tidShort = tidShort.substring(tidShort.length() - 8);
+        tvHeader.setText("Task #" + tidShort + " • " + item.getProfile().toUpperCase() + " • " + item.getWidth() + "x" + item.getHeight());
+        tvPrompt.setText(item.getOriginalPrompt());
+
+        // Thêm vào cuối container để tiến trình cũ ở trên, tiến trình mới ở dưới
+        containerActiveTasks.addView(card);
+
+        // Khởi chạy vòng lặp Polling ngầm riêng biệt cho task này (Không timeout chặn)
+        executor.execute(() -> {
+            long startTime = System.currentTimeMillis();
+            boolean finished = false;
+
+            while (!finished) {
+                try {
+                    Thread.sleep(2500);
+                } catch (InterruptedException ignored) {}
+
+                int elapsed = (int) ((System.currentTimeMillis() - startTime) / 1000);
+                PixAiApiHelper.PollStatusResult pr = PixAiApiHelper.pollTaskMedia(item.getTaskId(), token, proxy);
+
+                mainHandler.post(() -> {
+                    if ("running".equalsIgnoreCase(pr.status)) {
+                        tvBadge.setText("Đang render (" + elapsed + "s)...");
+                        tvBadge.setTextColor(0xFF64B5F6);
+                    } else if ("waiting".equalsIgnoreCase(pr.status)) {
+                        tvBadge.setText("Đang chờ GPU (" + elapsed + "s)...");
+                        tvBadge.setTextColor(0xFFFFA726);
+                    }
+                });
+
+                if (pr.completed && !pr.imageUrls.isEmpty()) {
+                    finished = true;
+                    item.setStatus(HistoryItem.STATUS_COMPLETED);
+                    item.setImageUrls(pr.imageUrls);
+                    item.setServerPrompt(pr.serverPrompt.isEmpty() ? item.getOriginalPrompt() : pr.serverPrompt);
+                    item.setSeed(pr.seed);
+                    storage.updateHistoryItem(item);
+
+                    mainHandler.post(() -> {
+                        pb.setVisibility(View.GONE);
+                        tvBadge.setText("Hoàn tất (" + elapsed + "s)");
+                        tvBadge.setTextColor(0xFF81C784);
+                        layoutResult.setVisibility(View.VISIBLE);
+
+                        // Tải ảnh thumbnail vào thẻ
+                        String firstUrl = pr.imageUrls.get(0);
+                        loadImageIntoView(firstUrl, ivThumb, item.getId());
+
+                        btnZoom.setOnClickListener(v -> openFullscreenZoom(firstUrl));
+                        btnApply.setOnClickListener(v -> applyTaskResultToMainStudio(item));
+
+                        // Tự động nạp vào màn hình kết quả chính
+                        applyTaskResultToMainStudio(item);
+
+                        refreshHistoryList();
+                        logMessage("Task #" + item.getTaskId() + " hoàn thành 100%! Đã nhận " + pr.imageUrls.size() + " ảnh.");
+                        Toast.makeText(this, "Tạo ảnh hoàn tất (" + elapsed + "s)!", Toast.LENGTH_SHORT).show();
+                    });
+                } else if (pr.failed) {
+                    finished = true;
+                    item.setStatus(HistoryItem.STATUS_FAILED);
+                    item.setErrorMessage(pr.errorMessage);
+                    storage.updateHistoryItem(item);
+
+                    mainHandler.post(() -> {
+                        pb.setVisibility(View.GONE);
+                        tvBadge.setText("Thất bại");
+                        tvBadge.setTextColor(0xFFE57373);
+                        logMessage("Task #" + item.getTaskId() + " thất bại: " + pr.errorMessage);
+                    });
+                } else if (elapsed > 1800) { // 30 phút tối đa để dọn tài nguyên
+                    finished = true;
+                }
+            }
+        });
+    }
+
+    private void applyTaskResultToMainStudio(HistoryItem item) {
+        lastOriginalPrompt = item.getOriginalPrompt();
+        lastServerPrompt = item.getServerPrompt();
+        currentResultImages.clear();
+        currentResultImages.addAll(item.getImageUrls());
+        currentCarouselIdx = 0;
+
+        layoutResultCard.setVisibility(View.VISIBLE);
+        tvResOriginalPrompt.setText(lastOriginalPrompt);
+        tvResServerPrompt.setText(lastServerPrompt);
+        updateCarouselDisplay();
+    }
+
+    private void loadImageIntoView(String urlString, ImageView targetView, String cacheKey) {
+        Bitmap cached = storage.getDecryptedImageCache(cacheKey);
+        if (cached != null) {
+            targetView.setImageBitmap(cached);
+            return;
+        }
+
+        executor.execute(() -> {
+            try {
+                URL u = new URL(urlString);
+                HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(15000);
+                if (conn.getResponseCode() == 200) {
+                    try (InputStream is = conn.getInputStream(); ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                        byte[] buf = new byte[8192];
+                        int r;
+                        while ((r = is.read(buf)) != -1) bos.write(buf, 0, r);
+                        byte[] rawBytes = bos.toByteArray();
+                        storage.saveEncryptedImageCache(cacheKey, rawBytes);
+                        Bitmap bm = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.length);
+                        mainHandler.post(() -> {
+                            if (bm != null && targetView != null) {
+                                targetView.setImageBitmap(bm);
+                            }
+                        });
+                    }
+                }
+            } catch (Exception ignored) {}
+        });
     }
 
     private void loadImagePreview(String urlString) {
@@ -1717,6 +1830,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void resumePendingTasks() {
+        List<HistoryItem> pending = storage.getPendingHistoryItems();
+        if (pending.isEmpty()) return;
+        AccountModel active = storage.getActiveAccount();
+        if (active == null || active.getToken() == null) return;
+        String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+        for (HistoryItem item : pending) {
+            attachTaskCardToQueue(item, active.getToken(), proxy);
+        }
+    }
+
     private class HistoryAdapter extends ArrayAdapter<HistoryItem> {
         public HistoryAdapter(Context ctx, List<HistoryItem> items) {
             super(ctx, 0, items);
@@ -1733,37 +1857,61 @@ public class MainActivity extends AppCompatActivity {
             TextView tvPrompt = convertView.findViewById(R.id.tvHistoryPrompt);
             TextView tvDate = convertView.findViewById(R.id.tvHistoryDate);
 
-            tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " - " + item.getWidth() + "x" + item.getHeight());
             tvPrompt.setText(item.getOriginalPrompt());
             tvDate.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date(item.getTimestamp())));
 
-            Bitmap cached = storage.getDecryptedImageCache(item.getId());
-            if (cached != null) {
-                ivThumb.setImageBitmap(cached);
+            if (item.isPending()) {
+                tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " • ĐANG TẠO TRÊN GPU PIXAI");
+                tvMeta.setTextColor(0xFFFFA726);
+                ivThumb.setImageResource(android.R.drawable.stat_notify_sync);
+                convertView.setOnClickListener(v -> Toast.makeText(getContext(), "Tác vụ đang kết xuất trên GPU PixAI...", Toast.LENGTH_SHORT).show());
+            } else if (item.isFailed()) {
+                tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " • THẤT BẠI");
+                tvMeta.setTextColor(0xFFE57373);
+                ivThumb.setImageResource(android.R.drawable.ic_dialog_alert);
+                convertView.setOnClickListener(v -> Toast.makeText(getContext(), "Tác vụ thất bại: " + item.getErrorMessage(), Toast.LENGTH_SHORT).show());
             } else {
-                ivThumb.setImageResource(android.R.drawable.ic_menu_gallery);
-                executor.execute(() -> {
-                    try {
-                        URL u = new URL(item.getImageUrl());
-                        HttpURLConnection conn = (HttpURLConnection) u.openConnection();
-                        InputStream is = conn.getInputStream();
-                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                        byte[] buf = new byte[8192];
-                        int r;
-                        while ((r = is.read(buf)) != -1) bos.write(buf, 0, r);
-                        byte[] rawBytes = bos.toByteArray();
+                tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " - " + item.getWidth() + "x" + item.getHeight());
+                tvMeta.setTextColor(0xFF81C784);
 
-                        storage.saveEncryptedImageCache(item.getId(), rawBytes);
-                        Bitmap bm = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.length);
+                Bitmap cached = storage.getDecryptedImageCache(item.getId());
+                if (cached != null) {
+                    ivThumb.setImageBitmap(cached);
+                } else {
+                    ivThumb.setImageResource(android.R.drawable.ic_menu_gallery);
+                    if (item.getImageUrl() != null && !item.getImageUrl().isEmpty()) {
+                        executor.execute(() -> {
+                            try {
+                                URL u = new URL(item.getImageUrl());
+                                HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                                conn.setConnectTimeout(8000);
+                                conn.setReadTimeout(12000);
+                                if (conn.getResponseCode() == 200) {
+                                    try (InputStream is = conn.getInputStream(); ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+                                        byte[] buf = new byte[8192];
+                                        int r;
+                                        while ((r = is.read(buf)) != -1) bos.write(buf, 0, r);
+                                        byte[] rawBytes = bos.toByteArray();
 
-                        mainHandler.post(() -> {
-                            if (bm != null) ivThumb.setImageBitmap(bm);
+                                        storage.saveEncryptedImageCache(item.getId(), rawBytes);
+                                        Bitmap bm = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.length);
+
+                                        mainHandler.post(() -> {
+                                            if (bm != null) ivThumb.setImageBitmap(bm);
+                                        });
+                                    }
+                                }
+                            } catch (Exception ignored) {}
                         });
-                    } catch (Exception ignored) {}
+                    }
+                }
+
+                convertView.setOnClickListener(v -> {
+                    if (item.getImageUrl() != null && !item.getImageUrl().isEmpty()) {
+                        openFullscreenZoom(item.getImageUrl());
+                    }
                 });
             }
-
-            convertView.setOnClickListener(v -> openFullscreenZoom(item.getImageUrl()));
 
             return convertView;
         }

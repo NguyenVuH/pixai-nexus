@@ -9,3 +9,7 @@ app/build/
 local.properties
 .idea/
 *.iml
+test_*.py
+check_*.py
+list_balances.py
+get_user_tasks.py

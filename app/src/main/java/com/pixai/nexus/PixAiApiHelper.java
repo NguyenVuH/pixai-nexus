@@ -55,6 +55,24 @@ public class PixAiApiHelper {
         public String errorMessage = "";
     }
 
+    public static class CreateTaskResult {
+        public boolean success = false;
+        public boolean insufficientBalance = false;
+        public String taskId = "";
+        public String errorMessage = "";
+        public long paidCredit = 0;
+    }
+
+    public static class PollStatusResult {
+        public String status = "unknown";
+        public boolean completed = false;
+        public boolean failed = false;
+        public List<String> imageUrls = new ArrayList<>();
+        public String serverPrompt = "";
+        public long seed = 0;
+        public String errorMessage = "";
+    }
+
     public static HttpURLConnection openConnectionWithProxy(URL url, String proxyStr) throws Exception {
         if (proxyStr == null || proxyStr.trim().isEmpty()) {
             return (HttpURLConnection) url.openConnection();
@@ -287,23 +305,20 @@ public class PixAiApiHelper {
         return createAndPollGenerationTask(token, profile, isReal, qualityMode, width, height, batchSize, prompt, customNegative, list, proxyStr, callback);
     }
 
-    public static TaskResult createAndPollGenerationTask(
+    public static CreateTaskResult createGenerationTask(
             String token,
-            String profile, // "flash", "pro", "ultra"
+            String profile,
             boolean isReal,
-            String qualityMode, // "standard", "high", "ultra"
+            String qualityMode,
             int width,
             int height,
             int batchSize,
             String prompt,
             String customNegative,
             List<String> attachedMediaIds,
-            String proxyStr,
-            ProgressCallback callback
+            String proxyStr
     ) {
-        TaskResult result = new TaskResult();
-        result.originalPrompt = prompt;
-
+        CreateTaskResult result = new CreateTaskResult();
         try {
             String modelId = "flash".equalsIgnoreCase(profile) ? MODEL_TSUBAKI_FLASH : MODEL_TSUBAKI_PRO;
 
@@ -312,7 +327,7 @@ public class PixAiApiHelper {
             params.put("inferenceProfile", profile.toLowerCase());
             params.put("width", width);
             params.put("height", height);
-            params.put("priority", 0); // Sử dụng priority 0 để tránh tiêu tốn credit vô ích
+            params.put("priority", 1000); // 1000 là mức ưu tiên chuẩn web PixAI kết xuất siêu tốc (~24s)
             params.put("prompts", prompt);
             params.put("seed", "");
             params.put("batchSize", batchSize);
@@ -327,7 +342,6 @@ public class PixAiApiHelper {
             promptHelper.put("creativity", "medium");
             params.put("promptHelper", promptHelper);
 
-            // Xử lý Quality Tag
             JSONObject qualityTag = new JSONObject();
             if ("high".equalsIgnoreCase(qualityMode)) {
                 qualityTag.put("prefix", "masterpiece, best quality, ultra-detailed");
@@ -341,13 +355,11 @@ public class PixAiApiHelper {
             }
             params.put("qualityTag", qualityTag);
 
-            // Negative prompt cho pro/ultra hoặc tuỳ chỉnh
             if (!"flash".equalsIgnoreCase(profile) || (customNegative != null && !customNegative.trim().isEmpty())) {
                 String neg = (customNegative != null && !customNegative.trim().isEmpty()) ? customNegative : DEFAULT_NEGATIVE;
                 params.put("negativePrompts", neg);
             }
 
-            // Xử lý danh sách đính kèm nhiều ảnh (Context Images) hoặc LoRA Realism
             boolean hasContext = false;
             if (attachedMediaIds != null && !attachedMediaIds.isEmpty()) {
                 JSONArray ctx = new JSONArray();
@@ -399,13 +411,8 @@ public class PixAiApiHelper {
             ext.put("persistedQuery", pers);
             payload.put("extensions", ext);
 
-            if (callback != null) {
-                callback.onProgress("Đang gửi yêu cầu khởi tạo tới PixAI Engine (" + profile.toUpperCase() + ")...", 0);
-            }
-
             JSONObject createRes = sendGraphQL(payload, token, proxyStr);
 
-            // Kiểm tra lỗi từ chối hoặc hết credit
             JSONArray errors = createRes.optJSONArray("errors");
             if (errors != null && errors.length() > 0) {
                 String errMsg = errors.getJSONObject(0).optString("message", "");
@@ -426,10 +433,26 @@ public class PixAiApiHelper {
                 return result;
             }
 
-            String taskId = taskObj.getString("id");
-            result.taskId = taskId;
+            result.taskId = taskObj.getString("id");
+            result.paidCredit = taskObj.optLong("paidCredit", 0);
+            result.success = true;
+            return result;
+        } catch (Exception e) {
+            result.success = false;
+            result.errorMessage = "Lỗi kết nối: " + e.getMessage();
+            return result;
+        }
+    }
 
-            // 2. Polling chờ kết quả
+    public static PollStatusResult pollTaskMedia(String taskId, String token, String proxyStr) {
+        PollStatusResult result = new PollStatusResult();
+        if (taskId == null || taskId.trim().isEmpty()) {
+            result.failed = true;
+            result.errorMessage = "Task ID không hợp lệ";
+            return result;
+        }
+
+        try {
             String queryTask = "query getTaskMedia($id: ID!) {\n" +
                     "  task(id: $id) {\n" +
                     "    id\n" +
@@ -452,68 +475,113 @@ public class PixAiApiHelper {
             pollVars.put("id", taskId);
             pollPayload.put("variables", pollVars);
 
-            long start = System.currentTimeMillis();
-            while (System.currentTimeMillis() - start < 300000) { // 300s (5 phút) timeout chuẩn
-                Thread.sleep(2500);
-                int elapsedSec = (int) ((System.currentTimeMillis() - start) / 1000);
+            JSONObject pollRes = sendGraphQL(pollPayload, token, proxyStr);
+            JSONObject tNode = pollRes.optJSONObject("data");
+            if (tNode != null) tNode = tNode.optJSONObject("task");
+            if (tNode != null) {
+                String status = tNode.optString("status", "").toLowerCase();
+                result.status = status;
+                if ("completed".equalsIgnoreCase(status)) {
+                    result.completed = true;
+                    JSONObject pObj = tNode.optJSONObject("parameters");
+                    if (pObj != null) {
+                        result.serverPrompt = pObj.optString("prompts", "");
+                    }
 
-                if (callback != null) {
-                    callback.onProgress("Đang render trên GPU PixAI (Đã chờ " + elapsedSec + "s)...", elapsedSec);
-                }
+                    JSONObject oObj = tNode.optJSONObject("outputs");
+                    if (oObj != null) {
+                        result.seed = oObj.optLong("seed", 0);
+                    }
 
-                JSONObject pollRes = sendGraphQL(pollPayload, token, proxyStr);
-                JSONObject tNode = pollRes.optJSONObject("data");
-                if (tNode != null) tNode = tNode.optJSONObject("task");
-                if (tNode != null) {
-                    String status = tNode.optString("status", "");
-                    if ("completed".equalsIgnoreCase(status)) {
-                        JSONObject pObj = tNode.optJSONObject("parameters");
-                        if (pObj != null) {
-                            result.serverPrompt = pObj.optString("prompts", prompt);
-                        } else {
-                            result.serverPrompt = prompt;
-                        }
-
-                        JSONObject oObj = tNode.optJSONObject("outputs");
-                        if (oObj != null) {
-                            result.seed = oObj.optLong("seed", 0);
-                        }
-
-                        JSONObject media = tNode.optJSONObject("media");
-                        if (media != null) {
-                            JSONArray urls = media.optJSONArray("urls");
-                            if (urls != null) {
-                                for (int i = 0; i < urls.length(); i++) {
-                                    JSONObject u = urls.getJSONObject(i);
-                                    if ("PUBLIC".equalsIgnoreCase(u.optString("variant"))) {
-                                        result.imageUrls.add(u.optString("url"));
-                                    }
-                                }
-                                if (result.imageUrls.isEmpty() && urls.length() > 0) {
-                                    result.imageUrls.add(urls.getJSONObject(0).optString("url"));
+                    JSONObject media = tNode.optJSONObject("media");
+                    if (media != null) {
+                        JSONArray urls = media.optJSONArray("urls");
+                        if (urls != null) {
+                            for (int i = 0; i < urls.length(); i++) {
+                                JSONObject u = urls.getJSONObject(i);
+                                if ("PUBLIC".equalsIgnoreCase(u.optString("variant"))) {
+                                    result.imageUrls.add(u.optString("url"));
                                 }
                             }
+                            if (result.imageUrls.isEmpty() && urls.length() > 0) {
+                                result.imageUrls.add(urls.getJSONObject(0).optString("url"));
+                            }
                         }
-
-                        result.success = !result.imageUrls.isEmpty();
-                        return result;
-                    } else if ("failed".equalsIgnoreCase(status) || "error".equalsIgnoreCase(status)) {
-                        result.success = false;
-                        result.errorMessage = "Tác vụ thất bại trên GPU PixAI (" + status + ")";
-                        return result;
                     }
+                    return result;
+                } else if ("failed".equalsIgnoreCase(status) || "error".equalsIgnoreCase(status)) {
+                    result.failed = true;
+                    result.errorMessage = "Tác vụ thất bại trên GPU PixAI (" + status + ")";
+                    return result;
                 }
+                return result;
             }
 
-            result.success = false;
-            result.errorMessage = "Quá thời gian chờ (Timeout 300s) kết xuất trên GPU PixAI";
+            JSONArray errors = pollRes.optJSONArray("errors");
+            if (errors != null && errors.length() > 0) {
+                result.errorMessage = errors.getJSONObject(0).optString("message", "");
+            }
             return result;
-
         } catch (Exception e) {
-            result.success = false;
-            result.errorMessage = "Lỗi kết nối: " + e.getMessage();
+            result.errorMessage = e.getMessage();
             return result;
         }
+    }
+
+    public static TaskResult createAndPollGenerationTask(
+            String token,
+            String profile,
+            boolean isReal,
+            String qualityMode,
+            int width,
+            int height,
+            int batchSize,
+            String prompt,
+            String customNegative,
+            List<String> attachedMediaIds,
+            String proxyStr,
+            ProgressCallback callback
+    ) {
+        TaskResult result = new TaskResult();
+        result.originalPrompt = prompt;
+
+        CreateTaskResult cr = createGenerationTask(token, profile, isReal, qualityMode, width, height, batchSize, prompt, customNegative, attachedMediaIds, proxyStr);
+        if (!cr.success) {
+            result.success = false;
+            result.insufficientBalance = cr.insufficientBalance;
+            result.errorMessage = cr.errorMessage;
+            return result;
+        }
+
+        result.taskId = cr.taskId;
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < 600000) { // 10 phút tối đa
+            try {
+                Thread.sleep(2500);
+            } catch (InterruptedException ignored) {}
+
+            int elapsed = (int) ((System.currentTimeMillis() - start) / 1000);
+            if (callback != null) {
+                callback.onProgress("Đang render trên GPU PixAI (Đã chờ " + elapsed + "s)...", elapsed);
+            }
+
+            PollStatusResult pr = pollTaskMedia(cr.taskId, token, proxyStr);
+            if (pr.completed) {
+                result.success = !pr.imageUrls.isEmpty();
+                result.imageUrls = pr.imageUrls;
+                result.serverPrompt = pr.serverPrompt.isEmpty() ? prompt : pr.serverPrompt;
+                result.seed = pr.seed;
+                return result;
+            } else if (pr.failed) {
+                result.success = false;
+                result.errorMessage = pr.errorMessage;
+                return result;
+            }
+        }
+
+        result.success = false;
+        result.errorMessage = "Quá thời gian chờ (Timeout) kết xuất trên GPU PixAI";
+        return result;
     }
 
     public static String uploadImageToPixAi(byte[] imageBytes, String token, String proxyStr) throws Exception {

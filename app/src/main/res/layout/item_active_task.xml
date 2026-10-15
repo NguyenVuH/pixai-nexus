@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layoutTaskCardRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_cyber_card"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <!-- Header Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tvTaskHeader"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Task #2067... • FLASH • 768x1280"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvTaskStatusBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Đang chờ GPU PixAI..."
+            android:textColor="#FFA726"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Prompt Preview -->
+    <TextView
+        android:id="@+id/tvTaskPrompt"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="1girl, masterpiece, photorealistic..."
+        android:textColor="#9E9E9E"
+        android:textSize="11sp" />
+
+    <!-- Progress Bar -->
+    <ProgressBar
+        android:id="@+id/pbTaskProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="4dp"
+        android:layout_marginTop="8dp"
+        android:indeterminate="true" />
+
+    <!-- Completed Result View -->
+    <LinearLayout
+        android:id="@+id/layoutTaskResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/ivTaskThumbnail"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_marginEnd="10dp"
+            android:background="#262626"
+            android:scaleType="centerCrop" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <Button
+                android:id="@+id/btnTaskZoom"
+                android:layout_width="match_parent"
+                android:layout_height="32dp"
+                android:background="@drawable/bg_cyber_btn_primary"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="Xem Phóng To"
+                android:textAllCaps="false"
+                android:textColor="#121212"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnTaskApply"
+                android:layout_width="match_parent"
+                android:layout_height="30dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/bg_cyber_btn_secondary"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:text="Đưa Lên Màn Chính"
+                android:textAllCaps="false"
+                android:textColor="#E0E0E0"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

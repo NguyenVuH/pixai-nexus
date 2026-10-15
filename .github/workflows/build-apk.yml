@@ -3,6 +3,7 @@ name: Build PixAI Nexus Release APK
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
@@ -36,16 +37,15 @@ jobs:
       uses: actions/upload-artifact@v4
       continue-on-error: true
       with:
-        name: PixAI-Nexus-v1.0.0-Release-APK
+        name: PixAI-Nexus-Release-APK
         path: app/build/outputs/apk/release/*.apk
 
     - name: Publish Release APK
       uses: softprops/action-gh-release@v2
-      if: github.ref == 'refs/heads/main'
+      if: startsWith(github.ref, 'refs/tags/')
       continue-on-error: true
       with:
-        tag_name: v1.0.0
-        name: "PixAI Nexus Release v1.0.0"
-        body: "Bản phát hành PixAI Nexus v1.0.0 độc lập: Giao diện Cyber Glassmorphism siêu đẹp (không icon), toàn bộ mạng chạy qua Proxy Shield, hỗ trợ Tsubaki 3 Flash / Pro / Ultra, lựa chọn Anime / Thực Tế (tự động gắn LoRA chuẩn), tùy chọn kích thước, tỉ lệ, đính kèm ảnh mẫu (tự loại LoRA), tự động xoay tua 44 tài khoản khi hết credits, tự động Reg Acc nhận 80K, nhận Daily hàng loạt và lưu lịch sử ảnh kèm prompt gốc + prompt do server sửa."
+        name: "PixAI Nexus Release ${{ github.ref_name }}"
+        body: "PixAI Nexus Release ${{ github.ref_name }}: Hàng đợi tạo ảnh đa tiến trình song song (không chặn timeout 300s), lưu ngay vào lịch sử mã hóa trạng thái PENDING và tự cập nhật ảnh khi GPU hoàn thành, ưu tiên chuẩn web PixAI kết xuất siêu tốc (~24s), tự động xoay tài khoản đủ số dư chính xác."
         files: app/build/outputs/apk/release/*.apk
         token: ${{ secrets.GITHUB_TOKEN }}
