@@ -2,14 +2,14 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#121212"
+    android:background="#0A0A0A"
     android:orientation="vertical">
 
     <!-- 1. HEADER BAR -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#181818"
+        android:background="#141414"
         android:paddingHorizontal="16dp"
         android:paddingVertical="12dp"
         android:orientation="vertical">
@@ -52,13 +52,13 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#282828" />
+        android:background="#222222" />
 
-    <!-- 2. NAVIGATION BAR (5 CLEAN PILLS - NO BRACKETS) -->
+    <!-- 2. NAVIGATION BAR (5 CLEAN TABS) -->
     <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#181818"
+        android:background="#141414"
         android:scrollbars="none">
 
         <LinearLayout
@@ -138,7 +138,7 @@
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:background="#282828" />
+        android:background="#222222" />
 
     <!-- 3. MAIN CONTENT CONTAINER -->
     <FrameLayout
@@ -158,7 +158,7 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <!-- Card: Phong Cách -->
+                <!-- Card: Phong Cách Nghệ Thuật -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -171,7 +171,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="Phong Cách &amp; Đặc Tính Nghệ Thuật"
+                        android:text="Phong Cách Nghệ Thuật"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -216,7 +216,7 @@
                         android:textSize="11sp" />
                 </LinearLayout>
 
-                <!-- Card: GPU Profile -->
+                <!-- Card: Chế Độ Engine (GPU Profile) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -277,7 +277,7 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- Card: Chất Lượng Ảnh (Quality Mode) -->
+                <!-- Card: Tùy Chọn Kích Thước (Size Preset & Custom & Auto) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -290,55 +290,132 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="Tùy Chọn Chất Lượng Ảnh"
+                        android:text="Kích Thước Ảnh (Tùy Chọn Size)"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
+                    <!-- 5 Size Chips: XL, L, M, Tùy Chỉnh, Auto -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="horizontal">
 
                         <Button
-                            android:id="@+id/btnQualityStandard"
+                            android:id="@+id/btnSizeXL"
                             android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginEnd="4dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="3dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_cyber_chip_active"
-                            android:text="Tiêu Chuẩn"
+                            android:minWidth="0dp"
+                            android:text="XL 1104x1824"
                             android:textAllCaps="false"
                             android:textColor="#FFFFFF"
-                            android:textSize="11sp" />
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
 
                         <Button
-                            android:id="@+id/btnQualityHigh"
+                            android:id="@+id/btnSizeL"
                             android:layout_width="0dp"
-                            android:layout_height="40dp"
-                            android:layout_marginHorizontal="4dp"
+                            android:layout_height="38dp"
+                            android:layout_marginHorizontal="3dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_cyber_chip_normal"
-                            android:text="Chất Lượng Cao"
+                            android:minWidth="0dp"
+                            android:text="L 944x1584"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="10sp" />
+
+                        <Button
+                            android:id="@+id/btnSizeM"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginStart="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="M 768x1280"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnSizeCustom"
+                            android:layout_width="0dp"
+                            android:layout_height="38dp"
+                            android:layout_marginEnd="4dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="Tùy Chỉnh Size"
                             android:textAllCaps="false"
                             android:textColor="#9E9E9E"
                             android:textSize="11sp" />
 
                         <Button
-                            android:id="@+id/btnQualityUltra"
+                            android:id="@+id/btnSizeAuto"
                             android:layout_width="0dp"
-                            android:layout_height="40dp"
+                            android:layout_height="38dp"
                             android:layout_marginStart="4dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_cyber_chip_normal"
-                            android:text="Siêu Thực 8K"
+                            android:minWidth="0dp"
+                            android:text="Auto Theo Ảnh Mẫu"
                             android:textAllCaps="false"
                             android:textColor="#9E9E9E"
+                            android:textSize="11sp"
+                            android:visibility="gone" />
+                    </LinearLayout>
+
+                    <!-- Container nhập kích thước tùy chỉnh -->
+                    <LinearLayout
+                        android:id="@+id/layoutCustomDimensions"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="horizontal"
+                        android:visibility="gone">
+
+                        <EditText
+                            android:id="@+id/etCustomWidth"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_marginEnd="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_input"
+                            android:hint="Chiều rộng (vd: 1024)"
+                            android:inputType="number"
+                            android:paddingHorizontal="10dp"
+                            android:textColor="#FFFFFF"
+                            android:textColorHint="#757575"
+                            android:textSize="11sp" />
+
+                        <EditText
+                            android:id="@+id/etCustomHeight"
+                            android:layout_width="0dp"
+                            android:layout_height="40dp"
+                            android:layout_marginStart="6dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_input"
+                            android:hint="Chiều cao (vd: 1024)"
+                            android:inputType="number"
+                            android:paddingHorizontal="10dp"
+                            android:textColor="#FFFFFF"
+                            android:textColorHint="#757575"
                             android:textSize="11sp" />
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- Card: Tỷ Lệ Khung Hình & Minh Họa Trực Quan -->
+                <!-- Card: Tỷ Lệ Khung Hình & Minh Họa Trực Quan (NO COMBOBOX) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -351,46 +428,258 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="Tỷ Lệ Khung Hình &amp; Số Lượng"
+                        android:text="Tỷ Lệ Khung Hình &amp; Minh Họa Trực Quan"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
+                    <!-- Minh họa tỷ lệ + thông số hiện tại -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
-                        <!-- KHUNG MINH HỌA TRỰC QUAN TỶ LỆ -->
+                        <!-- KHUNG MINH HỌA HÌNH HỌC CHUẨN XÁC -->
                         <FrameLayout
                             android:id="@+id/flRatioPreviewContainer"
                             android:layout_width="48dp"
                             android:layout_height="48dp"
                             android:layout_marginEnd="12dp"
-                            android:background="#262626">
+                            android:background="@drawable/bg_ratio_container">
 
                             <View
                                 android:id="@+id/vRatioPreviewBox"
-                                android:layout_width="20dp"
-                                android:layout_height="36dp"
+                                android:layout_width="26dp"
+                                android:layout_height="42dp"
                                 android:layout_gravity="center"
-                                android:background="#FFFFFF" />
+                                android:background="@drawable/bg_ratio_box" />
                         </FrameLayout>
 
-                        <Spinner
-                            android:id="@+id/spAspectRatio"
+                        <LinearLayout
                             android:layout_width="0dp"
-                            android:layout_height="44dp"
+                            android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:background="@drawable/bg_cyber_input"
-                            android:paddingHorizontal="10dp" />
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:id="@+id/tvRatioInfo"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Tỷ lệ: 9:16 | Chuẩn Dọc"
+                                android:textColor="#FFFFFF"
+                                android:textSize="12sp"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:id="@+id/tvDimensionInfo"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="Kích thước: 1104 x 1824 px (Cấp XL)"
+                                android:textColor="#9E9E9E"
+                                android:textSize="11sp" />
+                        </LinearLayout>
                     </LinearLayout>
 
+                    <!-- Danh sách nút tỷ lệ (Hàng 1) -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnRatio9_16"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginEnd="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_active"
+                            android:minWidth="0dp"
+                            android:text="9:16"
+                            android:textAllCaps="false"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio16_9"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="16:9"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio1_1"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="1:1"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio3_4"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="3:4"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio4_3"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="4:3"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <!-- Danh sách nút tỷ lệ (Hàng 2) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnRatio2_3"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginEnd="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="2:3"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio3_2"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="3:2"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio3_5"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="3:5"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio5_3"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="5:3"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio7_9"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="2dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="7:9"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <!-- Danh sách nút tỷ lệ (Hàng 3) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/btnRatio9_7"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginEnd="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="9:7"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio1_3"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginHorizontal="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="1:3"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+
+                        <Button
+                            android:id="@+id/btnRatio3_1"
+                            android:layout_width="0dp"
+                            android:layout_height="34dp"
+                            android:layout_marginStart="3dp"
+                            android:layout_weight="1"
+                            android:background="@drawable/bg_cyber_chip_normal"
+                            android:minWidth="0dp"
+                            android:text="3:1"
+                            android:textAllCaps="false"
+                            android:textColor="#9E9E9E"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <!-- Số lượng ảnh output -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
                         android:gravity="center_vertical"
                         android:orientation="horizontal">
 
@@ -428,7 +717,7 @@
                     </LinearLayout>
                 </LinearLayout>
 
-                <!-- Card: Đính Kèm Ảnh Mẫu (Img2Img) -->
+                <!-- Card: Đính Kèm Ảnh Mẫu (Img2Img - Hỗ Trợ Đa Ảnh) -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -441,7 +730,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="Đính Kèm Ảnh Mẫu (Img2Img)"
+                        android:text="Đính Kèm Ảnh Mẫu (Img2Img - Đa Ảnh)"
                         android:textColor="#FFFFFF"
                         android:textSize="13sp"
                         android:textStyle="bold" />
@@ -458,7 +747,7 @@
                             android:layout_marginEnd="6dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_cyber_btn_secondary"
-                            android:text="Chọn Ảnh Mẫu"
+                            android:text="Thêm Ảnh Mẫu"
                             android:textAllCaps="false"
                             android:textColor="#E0E0E0"
                             android:textSize="12sp" />
@@ -470,19 +759,34 @@
                             android:layout_marginStart="6dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_cyber_btn_secondary"
-                            android:text="Gỡ Ảnh"
+                            android:text="Gỡ Tất Cả Ảnh"
                             android:textAllCaps="false"
                             android:textColor="#E57373"
                             android:textSize="12sp"
                             android:visibility="gone" />
                     </LinearLayout>
 
+                    <!-- Danh sách ảnh đính kèm cuộn ngang -->
+                    <HorizontalScrollView
+                        android:id="@+id/hsvAttachedImages"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone">
+
+                        <LinearLayout
+                            android:id="@+id/layoutAttachedThumbnails"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal" />
+                    </HorizontalScrollView>
+
                     <TextView
                         android:id="@+id/tvAttachedImageName"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
-                        android:text="Chưa đính kèm ảnh (Tạo từ văn bản)"
+                        android:text="Chưa đính kèm ảnh (Tạo từ văn bản, bật LoRA Thực Tế)"
                         android:textColor="#9E9E9E"
                         android:textSize="11sp" />
                 </LinearLayout>
@@ -541,12 +845,13 @@
                         android:textColorHint="#757575"
                         android:textSize="12sp" />
 
+                    <!-- Tự động cập nhật số credit cần tạo mỗi khi thay đổi thông số -->
                     <TextView
                         android:id="@+id/tvCostBadge"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
-                        android:text="Chi phí: 100 Credits (Flash - 1 ảnh)"
+                        android:text="Chi phí: 100 CR | Đang kiểm tra tài khoản khả dụng..."
                         android:textColor="#E0E0E0"
                         android:textSize="12sp"
                         android:textStyle="bold" />
@@ -602,7 +907,7 @@
                         android:textSize="13sp"
                         android:textStyle="bold" />
 
-                    <!-- CAROUSEL BAR CHO BATCH 4 -->
+                    <!-- Carousel Bar -->
                     <LinearLayout
                         android:id="@+id/layoutCarouselBar"
                         android:layout_width="match_parent"
@@ -652,7 +957,7 @@
                         android:id="@+id/ivResultPreview"
                         android:layout_width="match_parent"
                         android:layout_height="340dp"
-                        android:background="#262626"
+                        android:background="#161616"
                         android:scaleType="fitCenter" />
 
                     <LinearLayout
@@ -766,7 +1071,7 @@
                 android:textSize="15sp"
                 android:textStyle="bold" />
 
-            <!-- Nhập token mới -->
+            <!-- Nhập token mới hoặc thêm -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -779,7 +1084,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="6dp"
-                    android:text="Thêm Token Tài Khoản Mới"
+                    android:text="Thêm Token Hoặc Tự Đăng Ký"
                     android:textColor="#FFFFFF"
                     android:textSize="12sp"
                     android:textStyle="bold" />
@@ -789,30 +1094,95 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:background="@drawable/bg_cyber_input"
-                    android:hint="Dán Token Bearer hoặc danh sách token (mỗi dòng một token)..."
+                    android:hint="Dán Bearer Token vào đây..."
                     android:minLines="2"
                     android:padding="10dp"
                     android:textColor="#FFFFFF"
                     android:textColorHint="#757575"
                     android:textSize="11sp" />
 
-                <Button
-                    android:id="@+id/btnAddAccountDirect"
+                <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="40dp"
-                    android:layout_marginTop="10dp"
-                    android:background="@drawable/bg_cyber_btn_secondary"
-                    android:text="Thêm Tài Khoản Vào Danh Sách"
-                    android:textAllCaps="false"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp" />
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnAddAccountDirect"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_cyber_btn_secondary"
+                        android:text="Thêm Token Này"
+                        android:textAllCaps="false"
+                        android:textColor="#FFFFFF"
+                        android:textSize="11sp" />
+
+                    <Button
+                        android:id="@+id/btnAutoRegAcc"
+                        android:layout_width="0dp"
+                        android:layout_height="38dp"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_cyber_btn_primary"
+                        android:text="Tự Đăng Ký Acc Mới"
+                        android:textAllCaps="false"
+                        android:textColor="#121212"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!-- Hàng Import / Export hàng loạt -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:orientation="horizontal">
+
+                    <Button
+                        android:id="@+id/btnImportText"
+                        android:layout_width="0dp"
+                        android:layout_height="34dp"
+                        android:layout_marginEnd="3dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_cyber_btn_secondary"
+                        android:text="Nhập List Text"
+                        android:textAllCaps="false"
+                        android:textColor="#E0E0E0"
+                        android:textSize="10sp" />
+
+                    <Button
+                        android:id="@+id/btnImportJson"
+                        android:layout_width="0dp"
+                        android:layout_height="34dp"
+                        android:layout_marginHorizontal="3dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_cyber_btn_secondary"
+                        android:text="Nhập JSON"
+                        android:textAllCaps="false"
+                        android:textColor="#E0E0E0"
+                        android:textSize="10sp" />
+
+                    <Button
+                        android:id="@+id/btnExportJson"
+                        android:layout_width="0dp"
+                        android:layout_height="34dp"
+                        android:layout_marginStart="3dp"
+                        android:layout_weight="1"
+                        android:background="@drawable/bg_cyber_btn_secondary"
+                        android:text="Xuất JSON"
+                        android:textAllCaps="false"
+                        android:textColor="#81C784"
+                        android:textSize="10sp" />
+                </LinearLayout>
             </LinearLayout>
 
-            <!-- Hàng tác vụ hàng loạt -->
+            <!-- Hàng tác vụ đồng bộ & claim -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="10dp"
+                android:layout_marginBottom="8dp"
                 android:orientation="horizontal">
 
                 <Button
@@ -918,6 +1288,19 @@
                     android:textStyle="bold" />
 
                 <Button
+                    android:id="@+id/btnHistorySecurity"
+                    android:layout_width="wrap_content"
+                    android:layout_height="34dp"
+                    android:layout_marginEnd="6dp"
+                    android:background="@drawable/bg_cyber_btn_secondary"
+                    android:minWidth="0dp"
+                    android:paddingHorizontal="10dp"
+                    android:text="Bảo Mật PIN"
+                    android:textAllCaps="false"
+                    android:textColor="#E0E0E0"
+                    android:textSize="11sp" />
+
+                <Button
                     android:id="@+id/btnClearHistory"
                     android:layout_width="wrap_content"
                     android:layout_height="34dp"
@@ -930,24 +1313,89 @@
                     android:textSize="11sp" />
             </LinearLayout>
 
-            <ListView
-                android:id="@+id/lvHistory"
+            <!-- Màn hình khóa PIN nếu được thiết lập -->
+            <LinearLayout
+                android:id="@+id/layoutHistoryLocked"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:divider="#202020"
-                android:dividerHeight="8dp" />
+                android:background="@drawable/bg_cyber_card"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="24dp"
+                android:visibility="gone">
 
-            <Button
-                android:id="@+id/btnLoadMoreHistory"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Kho Lịch Sử Đã Được Khóa Bảo Mật"
+                    android:textColor="#FFFFFF"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="Nhập mật khẩu hoặc mã PIN để giải mã và xem lịch sử ảnh:"
+                    android:textColor="#9E9E9E"
+                    android:textSize="11sp" />
+
+                <EditText
+                    android:id="@+id/etHistoryUnlockPin"
+                    android:layout_width="200dp"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/bg_cyber_input"
+                    android:gravity="center"
+                    android:hint="Nhập mật khẩu / PIN"
+                    android:inputType="textPassword"
+                    android:paddingHorizontal="12dp"
+                    android:textColor="#FFFFFF"
+                    android:textColorHint="#757575"
+                    android:textSize="14sp" />
+
+                <Button
+                    android:id="@+id/btnUnlockHistory"
+                    android:layout_width="200dp"
+                    android:layout_height="42dp"
+                    android:layout_marginTop="12dp"
+                    android:background="@drawable/bg_cyber_btn_primary"
+                    android:text="MỞ KHÓA LỊCH SỬ"
+                    android:textAllCaps="false"
+                    android:textColor="#121212"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <!-- Màn hình danh sách lịch sử khi đã mở khóa -->
+            <LinearLayout
+                android:id="@+id/layoutHistoryContent"
                 android:layout_width="match_parent"
-                android:layout_height="40dp"
-                android:layout_marginTop="10dp"
-                android:background="@drawable/bg_cyber_btn_secondary"
-                android:text="Xem Thêm 20 Phiên Tiếp Theo"
-                android:textAllCaps="false"
-                android:textColor="#FFFFFF"
-                android:textSize="12sp" />
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <ListView
+                    android:id="@+id/lvHistory"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:divider="#202020"
+                    android:dividerHeight="8dp" />
+
+                <Button
+                    android:id="@+id/btnLoadMoreHistory"
+                    android:layout_width="match_parent"
+                    android:layout_height="40dp"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/bg_cyber_btn_secondary"
+                    android:text="Xem Thêm 20 Phiên Tiếp Theo"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
+                    android:textSize="12sp" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- ================= TAB 4: BẢO MẬT & PROXY ================= -->
@@ -1025,7 +1473,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="6dp"
                         android:checked="true"
-                        android:text="Tự động đổi tài khoản khi hết credit hoặc lỗi số dư"
+                        android:text="Tự động đổi tài khoản khi hết credit hoặc không đủ tạo ảnh"
                         android:textColor="#E0E0E0"
                         android:textSize="12sp" />
 

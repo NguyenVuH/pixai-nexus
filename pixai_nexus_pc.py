@@ -1,17 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-PIXAI NEXUS PC STUDIO - PRO EDITION v2.0
-=========================================
-Thiết kế Dark Minimalist chuyên nghiệp (Đã gỡ bỏ toàn bộ ngoặc vuông [...], text rõ nét).
-Tích hợp Quản Lý Bảo Mật & Proxy Shield (Test Ping, IP, Vùng Quốc Gia, Auto-Fallback).
-Minh họa trực quan Tỷ Lệ Khung Hình (Ratio Aspect Preview).
-Thanh tiến trình chi tiết (4 bước) + Timeout 300s chống mất ảnh.
-Tự động tính Credit, tổng số dư toàn bộ tài khoản, tự động xoay tua khi thiếu credit.
-Tự động xác nhận 18+ và tắt làm mờ nhạy cảm (Unblur NSFW).
-Hiển thị Output ảnh dạng Carousel lướt ngang cho Batch 4 ảnh + Phóng to toàn màn hình + Tải về máy.
-Tự động phục hồi LoRA Thực Tế khi gỡ ảnh tham chiếu.
-Kho Lịch Sử mã hóa bảo mật toàn diện (Mã hóa file + cache ảnh .enc).
-Bảng điều khiển Console Log riêng biệt.
+PIXAI NEXUS PC STUDIO - PRO EDITION v3.0 (MONOCHROME DARK OCD)
+==============================================================
+Giao diện đơn sắc tối OLED Minimalist chuẩn mực (#0A0A0A / #141414 / #222222).
+Gỡ bỏ hoàn toàn mọi ký tự ngoặc vuông [...], bố cục căn chỉnh cân đối, xuống dòng chuẩn.
+Tùy chọn kích thước ảnh: 3 chuẩn XL 1104x1824, L 944x1584, M 768x1280, Tùy chỉnh (W x H), Auto theo ảnh mẫu.
+Tỷ lệ khung hình: 3:5, 5:3, 1:1, 9:16, 16:9, 3:4, 4:3, 2:3, 3:2, 7:9, 9:7, 1:3, 3:1 (Toàn bộ là nút bấm chip, không dùng combobox).
+Minh họa trực quan tỷ lệ hình học chuẩn xác theo chiều rộng x chiều cao thực tế.
+Đính kèm đa ảnh tham chiếu (Img2Img), cuộn ngang xem thumbnail có nút gỡ riêng từng ảnh; tự động phục hồi LoRA Thực Tế khi gỡ hết.
+Tự động tính chi phí Credit thời gian thực và tự động xoay tua tài khoản có đủ Credit.
+Tự động đăng ký tài khoản mới ngầm và tự động nhận toàn bộ phần thưởng Daily & Quests.
+Mở khóa 18+ và bỏ làm mờ nhạy cảm chuẩn xác với mutation setPreferences và lưu bằng chứng phản hồi.
+Nhập hàng loạt tài khoản từ danh sách text hoặc JSON; sao lưu xuất dữ liệu JSON ra file & clipboard.
+Kho Lịch Sử mã hóa bảo mật toàn diện trên ổ đĩa kèm cơ chế khóa mật khẩu / PIN.
 """
 
 import os
@@ -45,7 +46,6 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 GRAPHQL_URL = "https://api.pixai.art/graphql"
 PERSISTED_HASH = "83f9afa2ae341c3dd9dd1ed56d205331a8fa076215e4a651c462bbca8a437725"
 
-# Mã hóa bảo mật cho kho lịch sử
 CIPHER_KEY = b"PixAi_Nexus_Security_Master_Key_2026_Secure"
 
 def encrypt_bytes(data: bytes) -> bytes:
@@ -86,7 +86,7 @@ MODELS = {
         "cost4": 400
     },
     "pro": {
-        "name": "Tsubaki 3 PRO (Chất Lượng Cao)",
+        "name": "Tsubaki 3 PRO (Chất Lượng)",
         "modelId": "2024383379556065549",
         "profile": "pro",
         "hasNegative": True,
@@ -110,14 +110,6 @@ REALISTIC_LORA = {
 }
 
 DEFAULT_NEGATIVE = "lowres, worst quality, low quality, bad anatomy, explicit"
-
-ASPECT_RATIOS = [
-    ("9:16 Dọc (1104 x 1824)", 1104, 1824, "portrait"),
-    ("1:1 Vuông (1024 x 1024)", 1024, 1024, "square"),
-    ("16:9 Ngang (1824 x 1104)", 1824, 1104, "landscape"),
-    ("3:4 Tiêu Chuẩn (896 x 1152)", 896, 1152, "standard"),
-    ("Nhỏ Gọn (608 x 1024)", 608, 1024, "compact")
-]
 
 def http_request(url, method="POST", data=None, headers=None, proxy=None, timeout=30):
     if headers is None:
@@ -145,7 +137,7 @@ def http_request(url, method="POST", data=None, headers=None, proxy=None, timeou
     with opener.open(req, timeout=timeout) as resp:
         return resp.read()
 
-def http_graphql(query_or_vars, token, proxy=None, timeout=30):
+def http_graphql(payload, token, proxy=None, timeout=30):
     headers = {
         "Content-Type": "application/json",
         "Accept": "application/graphql-response+json,application/json;q=0.9",
@@ -153,41 +145,77 @@ def http_graphql(query_or_vars, token, proxy=None, timeout=30):
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    raw = http_request(GRAPHQL_URL, method="POST", data=query_or_vars, headers=headers, proxy=proxy, timeout=timeout)
+    raw = http_request(GRAPHQL_URL, method="POST", data=payload, headers=headers, proxy=proxy, timeout=timeout)
     return json.loads(raw.decode("utf-8"))
 
-def unblur_nsfw_for_account(token, proxy=None):
-    """Tự động xác nhận 18+ và tắt làm mờ ảnh nhạy cảm trên server PixAI"""
+def unblur_nsfw_for_account(token, proxy=None, proof_collector=None):
+    """Mở khóa 18+ và bỏ làm mờ nhạy cảm chuẩn xác với mutation setPreferences"""
     try:
         mutation = {
-            "query": """
-            mutation updateUserSettings($input: UpdateUserSettingsInput!) {
-                updateUserSettings(input: $input) {
-                    isNsfw
-                    showNsfw
-                }
-            }
-            """,
+            "query": """mutation setPreferences($value: JSONObject!) {
+  setPreferences(value: $value)
+}""",
             "variables": {
-                "input": {
+                "value": {
                     "isNsfw": True,
-                    "showNsfw": True
+                    "showNsfw": True,
+                    "blurNsfw": False,
+                    "nsfwFilter": False,
+                    "ageConfirmed": True
                 }
             }
         }
-        http_graphql(mutation, token, proxy=proxy, timeout=12)
+        res = http_graphql(mutation, token, proxy=proxy, timeout=12)
+        if proof_collector is not None:
+            proof_collector.append(json.dumps(res, ensure_ascii=False))
+        return "errors" not in res
+    except Exception as e:
+        if proof_collector is not None:
+            proof_collector.append(f"Lỗi: {e}")
+        return False
+
+def get_account_quota(token, proxy=None):
+    try:
+        headers = {"Authorization": f"Bearer {token}", "User-Agent": "Mozilla/5.0"}
+        raw = http_request("https://api.pixai.art/v2/user/me/quota", method="GET", headers=headers, proxy=proxy, timeout=10)
+        data = json.loads(raw.decode("utf-8"))
+        return data.get("amount", 0)
     except Exception:
-        pass
+        return 0
+
+def claim_daily(token, proxy=None):
+    try:
+        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+        raw = http_request("https://api.pixai.art/v2/claim/pixai-daily-credits", method="POST", data={"id": "pixai-daily-credits"}, headers=headers, proxy=proxy, timeout=10)
+        return True
+    except Exception:
+        return False
+
+def claim_all_quests(token, proxy=None):
+    success_count = 0
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+    for p in ["discord", "twitter", "instagram", "youtube", "tiktok"]:
+        try:
+            http_request("https://api.pixai.art/v2/quest-v2/report-social-follow", method="POST", data={"platform": p}, headers=headers, proxy=proxy, timeout=6)
+            success_count += 1
+        except Exception:
+            pass
+    for v in ["https://youtu.be/xGBoyWR4MBQ", "https://agent.pixai.art/"]:
+        try:
+            http_request("https://api.pixai.art/v2/quest-v2/report-visit", method="POST", data={"url": v}, headers=headers, proxy=proxy, timeout=6)
+            success_count += 1
+        except Exception:
+            pass
+    return success_count
 
 
 class PixAiNexusStudio(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PixAI Nexus Studio - AI Generation & Account Manager")
-        self.geometry("1200x820")
-        self.minsize(1050, 720)
+        self.title("PixAI Nexus Studio - AI Generation & Account Manager (Monochrome Dark)")
+        self.geometry("1280x880")
+        self.minsize(1080, 750)
         
-        # Load app icon if exists
         icon_path = os.path.join(BASE_DIR, "nexus_icon.ico")
         if os.path.exists(icon_path):
             try:
@@ -195,7 +223,6 @@ class PixAiNexusStudio(tk.Tk):
             except Exception:
                 pass
 
-        # Load configs & state
         self.load_config()
         self.load_accounts()
         self.history = load_encrypted_history()
@@ -203,34 +230,49 @@ class PixAiNexusStudio(tk.Tk):
         # State Variables
         self.current_style = tk.StringVar(value="real")  # anime | real
         self.current_profile = tk.StringVar(value="flash") # flash | pro | ultra
-        self.current_ratio_idx = tk.IntVar(value=0)
+        self.current_size_tier = tk.StringVar(value=self.config.get("size_tier", "xl")) # xl | l | m | custom | auto
+        self.current_ratio = tk.StringVar(value=self.config.get("ratio", "9:16"))
+        self.custom_w = tk.StringVar(value=str(self.config.get("custom_w", 1024)))
+        self.custom_h = tk.StringVar(value=str(self.config.get("custom_h", 1024)))
         self.batch_count = tk.IntVar(value=1)
-        self.attached_media_id = None
-        self.attached_image_name = tk.StringVar(value="Chưa đính kèm ảnh mẫu (Tạo từ văn bản)")
-        self.generated_images = [] # Danh sách URL ảnh hiện tại
+
+        # Multi-image state
+        self.attached_media_list = [] # List of {"path": str, "mediaId": str, "thumb": PhotoImage}
+        self.first_attached_dims = None
+
+        self.generated_images = []
         self.current_image_idx = 0
         self.last_original_prompt = ""
         self.last_server_prompt = ""
         self.is_generating = False
+        self.is_history_unlocked = not bool(self.config.get("history_pin_hash"))
 
         self.setup_theme()
         self.build_ui()
+        self.update_dimensions_and_preview()
         self.update_live_cost()
         self.update_header()
-        self.log_message("Hệ thống PixAI Nexus Studio v2.0 đã sẵn sàng.", "info")
+        self.log_message("Hệ thống PixAI Nexus Studio v3.0 Monochrome Dark đã sẵn sàng.", "info")
 
     def load_config(self):
         default_config = {
             "use_proxy": True,
             "proxy_address": "http://p.webshare.io:80",
             "auto_fallback_direct": True,
-            "kill_switch": False,
-            "anti_fingerprint": True
+            "auto_rotate_accounts": True,
+            "size_tier": "xl",
+            "ratio": "9:16",
+            "custom_w": 1024,
+            "custom_h": 1024,
+            "history_pin_hash": ""
         }
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                     self.config = json.load(f)
+                for k, v in default_config.items():
+                    if k not in self.config:
+                        self.config[k] = v
             except Exception:
                 self.config = default_config
         else:
@@ -239,6 +281,13 @@ class PixAiNexusStudio(tk.Tk):
 
     def save_config(self):
         try:
+            self.config["size_tier"] = self.current_size_tier.get()
+            self.config["ratio"] = self.current_ratio.get()
+            try:
+                self.config["custom_w"] = int(self.custom_w.get())
+                self.config["custom_h"] = int(self.custom_h.get())
+            except Exception:
+                pass
             with open(CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
         except Exception:
@@ -272,78 +321,71 @@ class PixAiNexusStudio(tk.Tk):
         return None
 
     def setup_theme(self):
-        # Dark Minimalist Color Palette (Đơn sắc tối sang trọng, độ tương phản cao)
-        self.c_bg = "#111318"          # Nền chính siêu tối
-        self.c_card = "#1A1D24"        # Khối thẻ panel
-        self.c_card_border = "#262C38" # Viền thẻ mảnh
-        self.c_input = "#14171E"       # Nền ô nhập liệu
-        self.c_input_border = "#2E3646"# Viền ô nhập
-        self.c_text = "#E2E8F0"        # Chữ sáng chính
-        self.c_muted = "#8C95A6"       # Chữ phụ mờ
-        self.c_primary = "#0284C7"     # Xanh biển chuẩn
-        self.c_primary_hover = "#0369A1"
-        self.c_accent = "#38BDF8"      # Xanh cyan sáng
-        self.c_success = "#10B981"     # Xanh lá ngọc
-        self.c_danger = "#EF4444"      # Đỏ cảnh báo
-        self.c_amber = "#F59E0B"       # Vàng cam nhấn
+        # OLED True Dark Palette (#0A0A0A / #141414 / #222222)
+        self.c_bg = "#0A0A0A"          # True black background
+        self.c_card = "#141414"        # Surface
+        self.c_card_border = "#222222" # Crisp subtle border
+        self.c_input = "#181818"       # Dark input
+        self.c_input_border = "#2A2A2A"
+        self.c_text = "#FFFFFF"        # Pure white text
+        self.c_muted = "#9E9E9E"       # Crisp secondary text
+        self.c_active = "#2A2A2A"      # Active chip background
+        self.c_active_stroke = "#E0E0E0"
+        self.c_success = "#81C784"     # Soft green
+        self.c_danger = "#E57373"      # Soft red
 
         self.configure(bg=self.c_bg)
 
-        # Cấu hình TTK Styles
         self.style = ttk.Style(self)
         self.style.theme_use("clam")
-        
         self.style.configure(".", background=self.c_bg, foreground=self.c_text, font=("Segoe UI", 9))
         self.style.configure("TFrame", background=self.c_bg)
         self.style.configure("Card.TFrame", background=self.c_card, relief="solid", borderwidth=1)
         self.style.configure("TNotebook", background=self.c_bg, borderwidth=0)
         self.style.configure("TNotebook.Tab", background=self.c_card, foreground=self.c_muted, padding=[16, 8], font=("Segoe UI", 9, "bold"))
         self.style.map("TNotebook.Tab",
-            background=[("selected", self.c_input_border)],
-            foreground=[("selected", self.c_accent)]
+            background=[("selected", self.c_active)],
+            foreground=[("selected", self.c_text)]
         )
-        self.style.configure("Horizontal.TProgressbar", troughcolor=self.c_input, background=self.c_accent, bordercolor=self.c_input_border)
+        self.style.configure("Horizontal.TProgressbar", troughcolor=self.c_input, background="#E0E0E0", bordercolor=self.c_input_border)
 
     def build_ui(self):
         # 1. HEADER BAR
-        self.header_frame = tk.Frame(self, bg="#161A22", height=48, padx=16, pady=8)
+        self.header_frame = tk.Frame(self, bg=self.c_card, height=48, padx=16, pady=8)
         self.header_frame.pack(side="top", fill="x")
 
-        self.lbl_brand = tk.Label(self.header_frame, text="PIXAI NEXUS STUDIO", bg="#161A22", fg=self.c_accent, font=("Segoe UI", 12, "bold"))
+        self.lbl_brand = tk.Label(self.header_frame, text="PIXAI NEXUS STUDIO", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 12, "bold"))
         self.lbl_brand.pack(side="left")
 
-        self.lbl_total_credits = tk.Label(self.header_frame, text="Tổng Số Dư: 0 Credits", bg="#161A22", fg=self.c_success, font=("Segoe UI", 10, "bold"))
+        self.lbl_total_credits = tk.Label(self.header_frame, text="Tổng: 0 CR", bg=self.c_card, fg=self.c_success, font=("Segoe UI", 10, "bold"))
         self.lbl_total_credits.pack(side="left", padx=(20, 0))
 
-        self.lbl_active_acc = tk.Label(self.header_frame, text="Tài khoản: [Đang tải...]", bg="#161A22", fg=self.c_text, font=("Segoe UI", 9))
+        self.lbl_active_acc = tk.Label(self.header_frame, text="Tài khoản: Chưa kích hoạt | Số dư: 0 CR", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9))
         self.lbl_active_acc.pack(side="left", padx=(15, 0))
 
-        self.lbl_proxy_status = tk.Label(self.header_frame, text="Proxy: BẬT", bg="#202736", fg=self.c_accent, font=("Segoe UI", 9, "bold"), padx=10, pady=2)
+        self.lbl_proxy_status = tk.Label(self.header_frame, text="Proxy Shield: BẬT", bg="#1E1E1E", fg=self.c_text, font=("Segoe UI", 9, "bold"), padx=10, pady=2)
         self.lbl_proxy_status.pack(side="right")
+
+        tk.Frame(self, bg=self.c_card_border, height=1).pack(fill="x")
 
         # 2. TAB NOTEBOOK
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(fill="both", expand=True, padx=12, pady=8)
 
-        # Tab 1: Tạo Ảnh Studio
         self.tab_studio = tk.Frame(self.notebook, bg=self.c_bg)
-        self.notebook.add(self.tab_studio, text=" TẠO ẢNH STUDIO ")
+        self.notebook.add(self.tab_studio, text=" STUDIO ")
 
-        # Tab 2: Quản Lý Tài Khoản
         self.tab_accounts = tk.Frame(self.notebook, bg=self.c_bg)
-        self.notebook.add(self.tab_accounts, text=" QUẢN LÝ TÀI KHOẢN ")
+        self.notebook.add(self.tab_accounts, text=" TÀI KHOẢN ")
 
-        # Tab 3: Kho Lịch Sử (Mã hóa)
         self.tab_history = tk.Frame(self.notebook, bg=self.c_bg)
-        self.notebook.add(self.tab_history, text=" KHO LỊCH SỬ ")
+        self.notebook.add(self.tab_history, text=" LỊCH SỬ ")
 
-        # Tab 4: Bảo Mật & Proxy
         self.tab_security = tk.Frame(self.notebook, bg=self.c_bg)
         self.notebook.add(self.tab_security, text=" BẢO MẬT & PROXY ")
 
-        # Tab 5: Nhật Ký Hoạt Động (Log)
         self.tab_logs = tk.Frame(self.notebook, bg=self.c_bg)
-        self.notebook.add(self.tab_logs, text=" NHẬT KÝ HỆ THỐNG ")
+        self.notebook.add(self.tab_logs, text=" NHẬT KÝ ")
 
         self.build_studio_tab()
         self.build_accounts_tab()
@@ -356,350 +398,686 @@ class PixAiNexusStudio(tk.Tk):
         container = tk.Frame(self.tab_studio, bg=self.c_bg)
         container.pack(fill="both", expand=True, padx=8, pady=8)
 
-        # Cột Trái: Bảng Điều Khiển Cấu Hình (450px)
-        left_pane = tk.Frame(container, bg=self.c_bg, width=460)
+        left_pane = tk.Frame(container, bg=self.c_bg, width=500)
         left_pane.pack(side="left", fill="both", padx=(0, 10))
         left_pane.pack_propagate(False)
 
-        # Khung cuộn bên trái
         canvas = tk.Canvas(left_pane, bg=self.c_bg, highlightthickness=0)
         scrollbar = ttk.Scrollbar(left_pane, orient="vertical", command=canvas.yview)
         scrollable_frame = tk.Frame(canvas, bg=self.c_bg)
         scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=440)
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw", width=480)
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
         # 1. Phong Cách (Anime vs Thực Tế)
-        grp_style = tk.LabelFrame(scrollable_frame, text=" Phong Cách Khởi Tạo ", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
+        grp_style = tk.LabelFrame(scrollable_frame, text=" Phong Cách Nghệ Thuật ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
         grp_style.pack(fill="x", pady=(0, 8))
 
         row_style = tk.Frame(grp_style, bg=self.c_card)
         row_style.pack(fill="x")
 
-        self.btn_style_anime = tk.Button(row_style, text="Anime Nguyên Bản", bg=self.c_input, fg=self.c_muted, activebackground=self.c_card_border, activeforeground=self.c_text, relief="flat", padx=12, pady=6, font=("Segoe UI", 9), command=lambda: self.set_style("anime"))
+        self.btn_style_anime = tk.Button(row_style, text="Anime Nguyên Bản", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=12, pady=6, font=("Segoe UI", 9), command=lambda: self.set_style("anime"))
         self.btn_style_anime.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
-        self.btn_style_real = tk.Button(row_style, text="Thực Tế (LoRA Chuẩn)", bg=self.c_primary, fg="#FFFFFF", activebackground=self.c_primary_hover, activeforeground="#FFFFFF", relief="flat", padx=12, pady=6, font=("Segoe UI", 9, "bold"), command=lambda: self.set_style("real"))
+        self.btn_style_real = tk.Button(row_style, text="Thực Tế (LoRA Chuẩn)", bg=self.c_active, fg=self.c_text, relief="solid", bd=1, padx=12, pady=6, font=("Segoe UI", 9, "bold"), command=lambda: self.set_style("real"))
         self.btn_style_real.pack(side="left", fill="x", expand=True, padx=(4, 0))
 
         self.lbl_lora_status = tk.Label(grp_style, text="LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)", bg=self.c_card, fg=self.c_success, font=("Segoe UI", 8))
         self.lbl_lora_status.pack(anchor="w", pady=(6, 0))
 
-        # 2. Engine Profile (Flash, Pro, Ultra)
-        grp_profile = tk.LabelFrame(scrollable_frame, text=" Chế Độ Engine (GPU Profile) ", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
+        # 2. Engine Profile
+        grp_profile = tk.LabelFrame(scrollable_frame, text=" Chế Độ Engine (GPU Profile) ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
         grp_profile.pack(fill="x", pady=(0, 8))
 
         row_prof = tk.Frame(grp_profile, bg=self.c_card)
         row_prof.pack(fill="x")
 
-        self.btn_prof_flash = tk.Button(row_prof, text="Flash (Siêu Tốc)", bg=self.c_primary, fg="#FFFFFF", relief="flat", padx=8, pady=5, font=("Segoe UI", 9, "bold"), command=lambda: self.set_profile("flash"))
+        self.btn_prof_flash = tk.Button(row_prof, text="Flash", bg=self.c_active, fg=self.c_text, relief="solid", bd=1, padx=8, pady=5, font=("Segoe UI", 9, "bold"), command=lambda: self.set_profile("flash"))
         self.btn_prof_flash.pack(side="left", fill="x", expand=True, padx=(0, 3))
 
-        self.btn_prof_pro = tk.Button(row_prof, text="Pro (Chất Lượng)", bg=self.c_input, fg=self.c_muted, relief="flat", padx=8, pady=5, font=("Segoe UI", 9), command=lambda: self.set_profile("pro"))
+        self.btn_prof_pro = tk.Button(row_prof, text="Pro", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=8, pady=5, font=("Segoe UI", 9), command=lambda: self.set_profile("pro"))
         self.btn_prof_pro.pack(side="left", fill="x", expand=True, padx=(3, 3))
 
-        self.btn_prof_ultra = tk.Button(row_prof, text="Ultra (Đỉnh Cao)", bg=self.c_input, fg=self.c_muted, relief="flat", padx=8, pady=5, font=("Segoe UI", 9), command=lambda: self.set_profile("ultra"))
+        self.btn_prof_ultra = tk.Button(row_prof, text="Ultra", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=8, pady=5, font=("Segoe UI", 9), command=lambda: self.set_profile("ultra"))
         self.btn_prof_ultra.pack(side="left", fill="x", expand=True, padx=(3, 0))
 
-        # 3. Tỷ Lệ Khung Hình & Minh Họa Trực Quan
-        grp_ratio = tk.LabelFrame(scrollable_frame, text=" Tỷ Lệ Khung Hình & Số Lượng ", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
+        # 3. Kích Thước Ảnh (Tùy Chọn Size: XL, L, M, Tùy Chỉnh, Auto)
+        grp_size = tk.LabelFrame(scrollable_frame, text=" Kích Thước Ảnh (Tùy Chọn Size) ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
+        grp_size.pack(fill="x", pady=(0, 8))
+
+        row_sizes1 = tk.Frame(grp_size, bg=self.c_card)
+        row_sizes1.pack(fill="x")
+
+        self.btn_size_xl = tk.Button(row_sizes1, text="XL 1104x1824", bg=self.c_active, fg=self.c_text, relief="solid", bd=1, padx=4, pady=4, font=("Segoe UI", 8, "bold"), command=lambda: self.set_size_tier("xl"))
+        self.btn_size_xl.pack(side="left", fill="x", expand=True, padx=(0, 2))
+
+        self.btn_size_l = tk.Button(row_sizes1, text="L 944x1584", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=4, font=("Segoe UI", 8), command=lambda: self.set_size_tier("l"))
+        self.btn_size_l.pack(side="left", fill="x", expand=True, padx=(2, 2))
+
+        self.btn_size_m = tk.Button(row_sizes1, text="M 768x1280", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=4, font=("Segoe UI", 8), command=lambda: self.set_size_tier("m"))
+        self.btn_size_m.pack(side="left", fill="x", expand=True, padx=(2, 0))
+
+        row_sizes2 = tk.Frame(grp_size, bg=self.c_card)
+        row_sizes2.pack(fill="x", pady=(4, 0))
+
+        self.btn_size_custom = tk.Button(row_sizes2, text="Tùy Chỉnh Size", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=4, font=("Segoe UI", 8), command=lambda: self.set_size_tier("custom"))
+        self.btn_size_custom.pack(side="left", fill="x", expand=True, padx=(0, 2))
+
+        self.btn_size_auto = tk.Button(row_sizes2, text="Auto Theo Ảnh Mẫu", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=4, font=("Segoe UI", 8), command=lambda: self.set_size_tier("auto"))
+        self.btn_size_auto.pack(side="left", fill="x", expand=True, padx=(2, 0))
+
+        # Khung nhập kích thước tùy chỉnh
+        self.frame_custom_dims = tk.Frame(grp_size, bg=self.c_card)
+        self.frame_custom_dims.pack(fill="x", pady=(6, 0))
+        tk.Label(self.frame_custom_dims, text="W:", bg=self.c_card, fg=self.c_muted).pack(side="left")
+        self.ent_custom_w = tk.Entry(self.frame_custom_dims, textvariable=self.custom_w, width=6, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid")
+        self.ent_custom_w.pack(side="left", padx=(2, 8))
+        tk.Label(self.frame_custom_dims, text="H:", bg=self.c_card, fg=self.c_muted).pack(side="left")
+        self.ent_custom_h = tk.Entry(self.frame_custom_dims, textvariable=self.custom_h, width=6, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid")
+        self.ent_custom_h.pack(side="left", padx=(2, 8))
+        self.custom_w.trace_add("write", lambda *args: self.on_custom_dim_changed())
+        self.custom_h.trace_add("write", lambda *args: self.on_custom_dim_changed())
+        self.frame_custom_dims.pack_forget()
+
+        # 4. Tỷ Lệ Khung Hình & Minh Họa Trực Quan (NO COMBOBOX)
+        grp_ratio = tk.LabelFrame(scrollable_frame, text=" Tỷ Lệ Khung Hình & Minh Họa Trực Quan ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
         grp_ratio.pack(fill="x", pady=(0, 8))
 
-        row_ratio_ctrl = tk.Frame(grp_ratio, bg=self.c_card)
-        row_ratio_ctrl.pack(fill="x")
+        row_preview = tk.Frame(grp_ratio, bg=self.c_card)
+        row_preview.pack(fill="x", pady=(0, 6))
 
-        # Minh họa trực quan khung chữ nhật tỷ lệ
-        self.ratio_canvas = tk.Canvas(row_ratio_ctrl, width=44, height=44, bg=self.c_input, highlightthickness=1, highlightbackground=self.c_input_border)
+        # Canvas minh họa hình học chuẩn xác
+        self.ratio_canvas = tk.Canvas(row_preview, width=48, height=48, bg="#161616", highlightthickness=1, highlightbackground=self.c_card_border)
         self.ratio_canvas.pack(side="left", padx=(0, 10))
 
-        ratio_options = [r[0] for r in ASPECT_RATIOS]
-        self.cb_ratio = ttk.Combobox(row_ratio_ctrl, values=ratio_options, state="readonly", font=("Segoe UI", 9))
-        self.cb_ratio.current(0)
-        self.cb_ratio.pack(side="left", fill="x", expand=True)
-        self.cb_ratio.bind("<<ComboboxSelected>>", self.on_ratio_changed)
+        frame_ratio_info = tk.Frame(row_preview, bg=self.c_card)
+        frame_ratio_info.pack(side="left", fill="both", expand=True)
+
+        self.lbl_ratio_title = tk.Label(frame_ratio_info, text="Tỷ lệ: 9:16", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 10, "bold"), anchor="w")
+        self.lbl_ratio_title.pack(fill="x")
+
+        self.lbl_ratio_dims = tk.Label(frame_ratio_info, text="Kích thước: 1104 x 1824 px (XL)", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9), anchor="w")
+        self.lbl_ratio_dims.pack(fill="x")
+
+        # Hàng nút tỷ lệ 1: 9:16, 16:9, 1:1, 3:4, 4:3
+        row_r1 = tk.Frame(grp_ratio, bg=self.c_card)
+        row_r1.pack(fill="x", pady=(2, 2))
+        self.ratio_buttons = {}
+        for r_name in ["9:16", "16:9", "1:1", "3:4", "4:3"]:
+            btn = tk.Button(row_r1, text=r_name, bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=3, font=("Segoe UI", 8), command=lambda rn=r_name: self.set_ratio(rn))
+            btn.pack(side="left", fill="x", expand=True, padx=1)
+            self.ratio_buttons[r_name] = btn
+
+        # Hàng nút tỷ lệ 2: 2:3, 3:2, 3:5, 5:3, 7:9
+        row_r2 = tk.Frame(grp_ratio, bg=self.c_card)
+        row_r2.pack(fill="x", pady=(2, 2))
+        for r_name in ["2:3", "3:2", "3:5", "5:3", "7:9"]:
+            btn = tk.Button(row_r2, text=r_name, bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=3, font=("Segoe UI", 8), command=lambda rn=r_name: self.set_ratio(rn))
+            btn.pack(side="left", fill="x", expand=True, padx=1)
+            self.ratio_buttons[r_name] = btn
+
+        # Hàng nút tỷ lệ 3: 9:7, 1:3, 3:1
+        row_r3 = tk.Frame(grp_ratio, bg=self.c_card)
+        row_r3.pack(fill="x", pady=(2, 0))
+        for r_name in ["9:7", "1:3", "3:1"]:
+            btn = tk.Button(row_r3, text=r_name, bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=4, pady=3, font=("Segoe UI", 8), command=lambda rn=r_name: self.set_ratio(rn))
+            btn.pack(side="left", fill="x", expand=True, padx=1)
+            self.ratio_buttons[r_name] = btn
 
         # Hàng chọn số lượng ảnh (1 hoặc 4)
         row_batch = tk.Frame(grp_ratio, bg=self.c_card)
         row_batch.pack(fill="x", pady=(8, 0))
 
-        tk.Label(row_batch, text="Số lượng ảnh output:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9)).pack(side="left")
+        tk.Label(row_batch, text="Số lượng output:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9)).pack(side="left")
 
-        self.btn_batch1 = tk.Button(row_batch, text="1 Ảnh", bg=self.c_primary, fg="#FFFFFF", relief="flat", padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=lambda: self.set_batch(1))
+        self.btn_batch1 = tk.Button(row_batch, text="1 Ảnh", bg=self.c_active, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=lambda: self.set_batch(1))
         self.btn_batch1.pack(side="left", padx=(10, 4))
 
-        self.btn_batch4 = tk.Button(row_batch, text="4 Ảnh (Chỉ Flash)", bg=self.c_input, fg=self.c_muted, relief="flat", padx=10, pady=3, font=("Segoe UI", 8), command=lambda: self.set_batch(4))
+        self.btn_batch4 = tk.Button(row_batch, text="4 Ảnh (Chỉ Flash)", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=lambda: self.set_batch(4))
         self.btn_batch4.pack(side="left")
 
-        # 4. Đính Kèm Ảnh Mẫu (Context Image)
-        grp_attach = tk.LabelFrame(scrollable_frame, text=" Đính Kèm Ảnh Mẫu (Img2Img) ", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
+        # 5. Đính Kèm Đa Ảnh Mẫu (Img2Img)
+        grp_attach = tk.LabelFrame(scrollable_frame, text=" Đính Kèm Ảnh Mẫu (Img2Img - Đa Ảnh) ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
         grp_attach.pack(fill="x", pady=(0, 8))
 
         row_attach = tk.Frame(grp_attach, bg=self.c_card)
         row_attach.pack(fill="x")
 
-        self.btn_pick_img = tk.Button(row_attach, text="Chọn Ảnh Mẫu", bg=self.c_card_border, fg=self.c_text, activebackground=self.c_input_border, activeforeground="#FFFFFF", relief="flat", padx=10, pady=4, font=("Segoe UI", 9), command=self.pick_reference_image)
+        self.btn_pick_img = tk.Button(row_attach, text="Thêm Ảnh Tham Chiếu", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9), command=self.pick_reference_image)
         self.btn_pick_img.pack(side="left")
 
-        self.btn_clear_img = tk.Button(row_attach, text="Gỡ Ảnh", bg="#3B1C22", fg=self.c_danger, activebackground="#4C222B", activeforeground="#FFFFFF", relief="flat", padx=10, pady=4, font=("Segoe UI", 9), command=self.clear_reference_image)
-        self.btn_clear_img.pack(side="left", padx=(6, 0))
-        self.btn_clear_img.pack_forget()
+        self.btn_clear_all_img = tk.Button(row_attach, text="Gỡ Tất Cả", bg="#2A1616", fg=self.c_danger, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9), command=self.clear_all_reference_images)
+        self.btn_clear_all_img.pack(side="left", padx=(6, 0))
+        self.btn_clear_all_img.pack_forget()
 
-        self.lbl_attach_name = tk.Label(grp_attach, textvariable=self.attached_image_name, bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8), anchor="w")
+        # Dải hiển thị thumbnails ảnh đính kèm
+        self.frame_thumbs_container = tk.Frame(grp_attach, bg=self.c_card)
+        self.frame_thumbs_container.pack(fill="x", pady=(6, 0))
+        self.frame_thumbs_container.pack_forget()
+
+        self.lbl_attach_name = tk.Label(grp_attach, text="Chưa đính kèm ảnh (Tạo từ văn bản, bật LoRA Thực Tế)", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8), anchor="w")
         self.lbl_attach_name.pack(fill="x", pady=(4, 0))
 
-        # 5. Prompt & Negative Prompt
-        grp_prompt = tk.LabelFrame(scrollable_frame, text=" Câu Lệnh Prompt ", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
+        # 6. Prompt & Negative Prompt
+        grp_prompt = tk.LabelFrame(scrollable_frame, text=" Câu Lệnh Prompt Chính ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=10, pady=8)
         grp_prompt.pack(fill="x", pady=(0, 8))
 
-        tk.Label(grp_prompt, text="Mô tả hình ảnh (Prompt chính):", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w")
+        tk.Label(grp_prompt, text="Mô tả hình ảnh:", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w")
         self.txt_prompt = tk.Text(grp_prompt, height=4, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Segoe UI", 9))
         self.txt_prompt.pack(fill="x", pady=(2, 6))
-        self.txt_prompt.insert("1.0", "1girl, cyberpunk aesthetic, neon city night, masterpiece, highly detailed")
+        self.txt_prompt.insert("1.0", "1girl, realistic portrait, highly detailed, masterpieces")
 
-        tk.Label(grp_prompt, text="Negative Prompt (Chuẩn server PixAI):", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
+        tk.Label(grp_prompt, text="Negative Prompt (Loại trừ):", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
         self.txt_negative = tk.Text(grp_prompt, height=2, bg=self.c_input, fg=self.c_muted, insertbackground=self.c_text, bd=1, relief="solid", font=("Segoe UI", 8))
         self.txt_negative.pack(fill="x", pady=(2, 0))
         self.txt_negative.insert("1.0", DEFAULT_NEGATIVE)
 
-        # 6. Chi Phí & Nút Tạo Ảnh
+        # 7. Chi Phí & Nút Tạo Ảnh
         grp_action = tk.Frame(scrollable_frame, bg=self.c_bg)
         grp_action.pack(fill="x", pady=(4, 0))
 
-        self.lbl_cost_badge = tk.Label(grp_action, text="Chi phí: 100 Credits", bg=self.c_bg, fg=self.c_success, font=("Segoe UI", 10, "bold"))
+        self.lbl_cost_badge = tk.Label(grp_action, text="Chi phí: 100 CR | Đang kiểm tra tài khoản khả dụng...", bg=self.c_bg, fg=self.c_success, font=("Segoe UI", 10, "bold"))
         self.lbl_cost_badge.pack(anchor="w")
 
-        self.btn_generate = tk.Button(grp_action, text="KHỞI TẠO ẢNH NGAY", bg=self.c_primary, fg="#FFFFFF", activebackground=self.c_primary_hover, activeforeground="#FFFFFF", relief="flat", pady=10, font=("Segoe UI", 11, "bold"), command=self.on_start_generate)
+        self.btn_generate = tk.Button(grp_action, text="KHỞI TẠO ẢNH NGAY", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", activeforeground="#000000", relief="solid", bd=1, pady=10, font=("Segoe UI", 11, "bold"), command=self.on_start_generate)
         self.btn_generate.pack(fill="x", pady=(6, 4))
 
         self.progress_bar = ttk.Progressbar(grp_action, orient="horizontal", mode="indeterminate")
         self.lbl_gen_step = tk.Label(grp_action, text="Sẵn sàng khởi tạo.", bg=self.c_bg, fg=self.c_muted, font=("Segoe UI", 9))
         self.lbl_gen_step.pack(anchor="w")
 
-        self.draw_ratio_preview()
-
         # ================= CỘT PHẢI: KHU VỰC PREVIEW ẢNH & CAROUSEL =================
         right_pane = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
         right_pane.pack(side="right", fill="both", expand=True)
 
-        # Top bar preview
         top_prev_bar = tk.Frame(right_pane, bg=self.c_card, padx=12, pady=8)
         top_prev_bar.pack(fill="x")
 
-        tk.Label(top_prev_bar, text="KẾT QUẢ KHỞI TẠO", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 10, "bold")).pack(side="left")
+        tk.Label(top_prev_bar, text="KẾT QUẢ KHỞI TẠO", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 10, "bold")).pack(side="left")
 
-        self.btn_download_cur = tk.Button(top_prev_bar, text="Tải Ảnh Về Máy", bg=self.c_card_border, fg=self.c_text, relief="flat", padx=10, pady=3, font=("Segoe UI", 8), command=self.download_current_image)
+        self.btn_download_cur = tk.Button(top_prev_bar, text="Lưu Vào Máy", bg=self.c_input, fg=self.c_success, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=self.download_current_image)
         self.btn_download_cur.pack(side="right")
         self.btn_download_cur.config(state="disabled")
 
-        self.btn_zoom_cur = tk.Button(top_prev_bar, text="Phóng To Toàn Màn Hình", bg=self.c_card_border, fg=self.c_accent, relief="flat", padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=self.zoom_current_image)
+        self.btn_zoom_cur = tk.Button(top_prev_bar, text="Phóng To Toàn Màn Hình", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.zoom_current_image)
         self.btn_zoom_cur.pack(side="right", padx=(0, 6))
         self.btn_zoom_cur.config(state="disabled")
 
-        # Khung chứa ảnh preview trung tâm
-        self.preview_container = tk.Frame(right_pane, bg="#0D0F14")
-        self.preview_container.pack(fill="both", expand=True, padx=12, pady=6)
+        # Carousel Bar
+        self.frame_carousel = tk.Frame(right_pane, bg=self.c_card, pady=4)
+        self.frame_carousel.pack(fill="x")
 
-        self.lbl_image_display = tk.Label(self.preview_container, bg="#0D0F14", text="Chưa có ảnh nào được tạo.\nHãy nhập prompt và nhấn Khởi Tạo Ảnh Ngay.", fg=self.c_muted, font=("Segoe UI", 10))
-        self.lbl_image_display.pack(fill="both", expand=True)
-        self.lbl_image_display.bind("<Double-Button-1>", lambda e: self.zoom_current_image())
+        self.btn_prev_img = tk.Button(self.frame_carousel, text="Ảnh Trước", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.on_prev_image)
+        self.btn_prev_img.pack(side="left", padx=12)
 
-        # Điều hướng Carousel (Dành cho Batch 4 ảnh)
-        self.carousel_bar = tk.Frame(right_pane, bg=self.c_card, padx=12, pady=4)
-        self.carousel_bar.pack(fill="x")
+        self.lbl_carousel_idx = tk.Label(self.frame_carousel, text="Ảnh 1 / 1", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"))
+        self.lbl_carousel_idx.pack(side="left", expand=True)
 
-        self.btn_prev_img = tk.Button(self.carousel_bar, text="< Ảnh Trước", bg=self.c_card_border, fg=self.c_text, relief="flat", padx=10, pady=3, font=("Segoe UI", 8), command=self.prev_image)
-        self.btn_prev_img.pack(side="left")
+        self.btn_next_img = tk.Button(self.frame_carousel, text="Ảnh Tiếp", bg=self.c_input, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.on_next_image)
+        self.btn_next_img.pack(side="right", padx=12)
+        self.frame_carousel.pack_forget()
 
-        self.lbl_carousel_idx = tk.Label(self.carousel_bar, text="Ảnh 0 / 0", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9, "bold"))
-        self.lbl_carousel_idx.pack(side="left", padx=15)
+        # Canvas Preview
+        self.preview_canvas = tk.Canvas(right_pane, bg="#0E0E0E", highlightthickness=0)
+        self.preview_canvas.pack(fill="both", expand=True, padx=12, pady=(0, 8))
 
-        self.btn_next_img = tk.Button(self.carousel_bar, text="Ảnh Tiếp >", bg=self.c_card_border, fg=self.c_text, relief="flat", padx=10, pady=3, font=("Segoe UI", 8), command=self.next_image)
-        self.btn_next_img.pack(side="left")
+        # Bottom info: Prompts
+        bot_info = tk.Frame(right_pane, bg=self.c_card, padx=12, pady=6)
+        bot_info.pack(fill="x", side="bottom")
 
-        # Khung Prompt Gốc & Prompt Server Sửa
-        p_card = tk.Frame(right_pane, bg="#13161D", padx=10, pady=6, bd=1, relief="solid")
-        p_card.pack(fill="x", padx=12, pady=(0, 8))
+        tk.Label(bot_info, text="Prompt Server Sửa Đổi:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
+        self.lbl_server_prompt = tk.Label(bot_info, text="Chưa có", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 8), wraplength=550, justify="left", anchor="w")
+        self.lbl_server_prompt.pack(fill="x", pady=(0, 4))
 
-        row_og = tk.Frame(p_card, bg="#13161D")
-        row_og.pack(fill="x", pady=2)
-        tk.Label(row_og, text="Prompt Gốc:", bg="#13161D", fg=self.c_accent, font=("Segoe UI", 8, "bold"), width=13, anchor="w").pack(side="left")
-        self.lbl_res_original = tk.Label(row_og, text="--", bg="#13161D", fg=self.c_text, font=("Segoe UI", 8), anchor="w")
-        self.lbl_res_original.pack(side="left", fill="x", expand=True)
-        btn_copy_og = tk.Button(row_og, text="Copy Gốc", bg=self.c_card_border, fg=self.c_text, relief="flat", padx=6, pady=1, font=("Segoe UI", 7), command=self.copy_original_prompt)
-        btn_copy_og.pack(side="right")
+        tk.Label(bot_info, text="Prompt Gốc:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8)).pack(anchor="w")
+        self.lbl_orig_prompt = tk.Label(bot_info, text="Chưa có", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 8), wraplength=550, justify="left", anchor="w")
+        self.lbl_orig_prompt.pack(fill="x")
 
-        row_sv = tk.Frame(p_card, bg="#13161D")
-        row_sv.pack(fill="x", pady=2)
-        tk.Label(row_sv, text="Server Đã Sửa:", bg="#13161D", fg=self.c_success, font=("Segoe UI", 8, "bold"), width=13, anchor="w").pack(side="left")
-        self.lbl_res_server = tk.Label(row_sv, text="--", bg="#13161D", fg=self.c_success, font=("Segoe UI", 8), anchor="w")
-        self.lbl_res_server.pack(side="left", fill="x", expand=True)
-        btn_copy_sv = tk.Button(row_sv, text="Copy Server", bg=self.c_card_border, fg=self.c_success, relief="flat", padx=6, pady=1, font=("Segoe UI", 7), command=self.copy_server_prompt)
-        btn_copy_sv.pack(side="right")
+    # ================= TAB 2: QUẢN LÝ TÀI KHOẢN =================
+    def build_accounts_tab(self):
+        container = tk.Frame(self.tab_accounts, bg=self.c_bg, padx=16, pady=16)
+        container.pack(fill="both", expand=True)
 
-    # ================= LOGIC ĐIỀU KHIỂN STUDIO =================
+        tk.Label(container, text="QUẢN LÝ TÀI KHOẢN", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 13, "bold")).pack(anchor="w", pady=(0, 10))
+
+        # Khung thêm token và tự đăng ký
+        card_add = tk.LabelFrame(container, text=" Thêm Token Hoặc Tự Đăng Ký Acc Mới ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=12, pady=10)
+        card_add.pack(fill="x", pady=(0, 10))
+
+        row_add = tk.Frame(card_add, bg=self.c_card)
+        row_add.pack(fill="x")
+
+        self.ent_new_token = tk.Entry(row_add, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Segoe UI", 9))
+        self.ent_new_token.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        btn_add = tk.Button(row_add, text="Thêm Token Này", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9), command=self.on_add_account_token)
+        btn_add.pack(side="left", padx=(0, 6))
+
+        self.btn_auto_reg = tk.Button(row_add, text="Tự Đăng Ký Acc Mới", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=self.on_auto_register_account)
+        self.btn_auto_reg.pack(side="left")
+
+        # Hàng Import / Export hàng loạt
+        row_io = tk.Frame(card_add, bg=self.c_card)
+        row_io.pack(fill="x", pady=(8, 0))
+
+        btn_import_txt = tk.Button(row_io, text="Nhập List Text", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.on_import_text_dialog)
+        btn_import_txt.pack(side="left", padx=(0, 6))
+
+        btn_import_json = tk.Button(row_io, text="Nhập File JSON", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=self.on_import_json_dialog)
+        btn_import_json.pack(side="left", padx=(0, 6))
+
+        btn_export_json = tk.Button(row_io, text="Xuất File JSON", bg=self.c_card_border, fg=self.c_success, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=self.on_export_json)
+        btn_export_json.pack(side="left")
+
+        # Hàng nút tác vụ đồng bộ & claim
+        row_ops = tk.Frame(container, bg=self.c_bg)
+        row_ops.pack(fill="x", pady=(0, 10))
+
+        btn_sync = tk.Button(row_ops, text="Đồng Bộ Số Dư", bg=self.c_card, fg=self.c_text, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_sync_credits)
+        btn_sync.pack(side="left", padx=(0, 6))
+
+        btn_claim_daily = tk.Button(row_ops, text="Nhận Daily All", bg=self.c_card, fg=self.c_success, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_claim_daily)
+        btn_claim_daily.pack(side="left", padx=(0, 6))
+
+        btn_claim_all = tk.Button(row_ops, text="Nhận All Thưởng Quests", bg=self.c_card, fg=self.c_success, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_claim_quests)
+        btn_claim_all.pack(side="left", padx=(0, 6))
+
+        btn_unblur_all = tk.Button(row_ops, text="Mở Khóa 18+ Toàn Bộ", bg=self.c_card, fg=self.c_text, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_unblur_all)
+        btn_unblur_all.pack(side="left", padx=(0, 6))
+
+        btn_clear_accs = tk.Button(row_ops, text="Xóa Hết Tài Khoản", bg="#2A1616", fg=self.c_danger, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_clear_accounts)
+        btn_clear_accs.pack(side="right")
+
+        # Bảng danh sách tài khoản
+        tree_frame = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
+        tree_frame.pack(fill="both", expand=True)
+
+        self.acc_tree = ttk.Treeview(tree_frame, columns=("email", "credits", "status"), show="headings", selectmode="browse")
+        self.acc_tree.heading("email", text="Email / Danh Tính")
+        self.acc_tree.heading("credits", text="Số Dư (Credits)")
+        self.acc_tree.heading("status", text="Trạng Thái Hoạt Động")
+        self.acc_tree.column("email", width=420)
+        self.acc_tree.column("credits", width=150, anchor="center")
+        self.acc_tree.column("status", width=200, anchor="center")
+
+        acc_scroll = ttk.Scrollbar(tree_frame, orient="vertical", command=self.acc_tree.yview)
+        self.acc_tree.configure(yscrollcommand=acc_scroll.set)
+        self.acc_tree.pack(side="left", fill="both", expand=True)
+        acc_scroll.pack(side="right", fill="y")
+
+        self.acc_tree.bind("<Double-1>", self.on_select_active_account)
+
+    # ================= TAB 3: KHO LỊCH SỬ MÃ HÓA =================
+    def build_history_tab(self):
+        self.container_hist = tk.Frame(self.tab_history, bg=self.c_bg, padx=16, pady=16)
+        self.container_hist.pack(fill="both", expand=True)
+
+        top_bar = tk.Frame(self.container_hist, bg=self.c_bg)
+        top_bar.pack(fill="x", pady=(0, 10))
+
+        tk.Label(top_bar, text="KHO LỊCH SỬ MÃ HÓA", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 13, "bold")).pack(side="left")
+
+        self.btn_hist_security = tk.Button(top_bar, text="Thiết Lập Mật Khẩu PIN", bg=self.c_card, fg=self.c_text, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9), command=self.on_history_security_dialog)
+        self.btn_hist_security.pack(side="right")
+
+        btn_clear_hist = tk.Button(top_bar, text="Xóa Toàn Bộ Lịch Sử", bg="#2A1616", fg=self.c_danger, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9), command=self.on_clear_history)
+        btn_clear_hist.pack(side="right", padx=(0, 8))
+
+        # View khóa PIN
+        self.frame_hist_locked = tk.Frame(self.container_hist, bg=self.c_card, bd=1, relief="solid", padx=24, pady=32)
+        tk.Label(self.frame_hist_locked, text="Kho Lịch Sử Đã Được Khóa Bảo Mật", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 12, "bold")).pack(pady=(0, 8))
+        tk.Label(self.frame_hist_locked, text="Nhập mã PIN hoặc mật khẩu bảo vệ để giải mã và xem lịch sử:", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9)).pack(pady=(0, 12))
+
+        self.ent_hist_pin = tk.Entry(self.frame_hist_locked, show="*", bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", width=18, font=("Segoe UI", 12), justify="center")
+        self.ent_hist_pin.pack(pady=(0, 12))
+        self.ent_hist_pin.bind("<Return>", lambda e: self.on_unlock_history())
+
+        btn_unlock = tk.Button(self.frame_hist_locked, text="MỞ KHÓA LỊCH SỬ", bg="#E0E0E0", fg="#0A0A0A", activebackground="#FFFFFF", relief="solid", bd=1, padx=16, pady=6, font=("Segoe UI", 9, "bold"), command=self.on_unlock_history)
+        btn_unlock.pack()
+
+        # View nội dung lịch sử
+        self.frame_hist_content = tk.Frame(self.container_hist, bg=self.c_bg)
+        
+        hist_tree_frame = tk.Frame(self.frame_hist_content, bg=self.c_card, bd=1, relief="solid")
+        hist_tree_frame.pack(fill="both", expand=True)
+
+        self.hist_tree = ttk.Treeview(hist_tree_frame, columns=("date", "model", "size", "prompt"), show="headings", selectmode="browse")
+        self.hist_tree.heading("date", text="Thời Gian")
+        self.hist_tree.heading("model", text="Engine Profile")
+        self.hist_tree.heading("size", text="Kích Thước")
+        self.hist_tree.heading("prompt", text="Prompt")
+        self.hist_tree.column("date", width=150)
+        self.hist_tree.column("model", width=120, anchor="center")
+        self.hist_tree.column("size", width=100, anchor="center")
+        self.hist_tree.column("prompt", width=500)
+
+        hist_scroll = ttk.Scrollbar(hist_tree_frame, orient="vertical", command=self.hist_tree.yview)
+        self.hist_tree.configure(yscrollcommand=hist_scroll.set)
+        self.hist_tree.pack(side="left", fill="both", expand=True)
+        hist_scroll.pack(side="right", fill="y")
+
+        self.hist_tree.bind("<Double-1>", self.on_history_double_click)
+
+        self.check_history_lock_view()
+
+    def check_history_lock_view(self):
+        has_pin = bool(self.config.get("history_pin_hash"))
+        if has_pin and not self.is_history_unlocked:
+            self.frame_hist_content.pack_forget()
+            self.frame_hist_locked.pack(fill="both", expand=True)
+        else:
+            self.frame_hist_locked.pack_forget()
+            self.frame_hist_content.pack(fill="both", expand=True)
+            self.refresh_history_table()
+
+    # ================= TAB 4: BẢO MẬT & PROXY =================
+    def build_security_tab(self):
+        container = tk.Frame(self.tab_security, bg=self.c_bg, padx=16, pady=16)
+        container.pack(fill="both", expand=True)
+
+        tk.Label(container, text="BẢO MẬT & PROXY SHIELD", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 13, "bold")).pack(anchor="w", pady=(0, 10))
+
+        card_sec = tk.LabelFrame(container, text=" Cấu Hình Định Tuyến Proxy ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=14, pady=12)
+        card_sec.pack(fill="x", pady=(0, 10))
+
+        tk.Label(card_sec, text="Địa chỉ Proxy (HTTP/SOCKS5):", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w")
+        self.ent_proxy_addr = tk.Entry(card_sec, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Segoe UI", 9))
+        self.ent_proxy_addr.pack(fill="x", pady=(3, 8))
+        self.ent_proxy_addr.insert(0, self.config.get("proxy_address", ""))
+
+        self.var_use_proxy = tk.BooleanVar(value=self.config.get("use_proxy", True))
+        self.cb_use_proxy = tk.Checkbutton(card_sec, text="Kích hoạt định tuyến qua Proxy Shield", variable=self.var_use_proxy, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.cb_use_proxy.pack(anchor="w", pady=2)
+
+        self.var_auto_fallback = tk.BooleanVar(value=self.config.get("auto_fallback_direct", True))
+        self.cb_fallback = tk.Checkbutton(card_sec, text="Tự động Fallback sang Direct an toàn nếu Proxy lỗi", variable=self.var_auto_fallback, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.cb_fallback.pack(anchor="w", pady=2)
+
+        self.var_auto_rotate = tk.BooleanVar(value=self.config.get("auto_rotate_accounts", True))
+        self.cb_rotate = tk.Checkbutton(card_sec, text="Tự động đổi tài khoản khi hết credit hoặc không đủ tạo ảnh", variable=self.var_auto_rotate, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.cb_rotate.pack(anchor="w", pady=2)
+
+        row_sec_btns = tk.Frame(card_sec, bg=self.c_card)
+        row_sec_btns.pack(fill="x", pady=(10, 0))
+
+        btn_save_sec = tk.Button(row_sec_btns, text="LƯU CẤU HÌNH", bg="#E0E0E0", fg="#0A0A0A", relief="solid", bd=1, padx=14, pady=5, font=("Segoe UI", 9, "bold"), command=self.on_save_security_config)
+        btn_save_sec.pack(side="left", padx=(0, 8))
+
+        btn_test_proxy = tk.Button(row_sec_btns, text="Kiểm Tra Proxy", bg=self.c_card_border, fg=self.c_text, relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9), command=self.on_test_proxy)
+        btn_test_proxy.pack(side="left")
+
+        self.lbl_proxy_test_res = tk.Label(card_sec, text="Chưa kiểm tra kết nối.", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9))
+        self.lbl_proxy_test_res.pack(anchor="w", pady=(8, 0))
+
+    # ================= TAB 5: NHẬT KÝ =================
+    def build_logs_tab(self):
+        container = tk.Frame(self.tab_logs, bg=self.c_bg, padx=16, pady=16)
+        container.pack(fill="both", expand=True)
+
+        top_log = tk.Frame(container, bg=self.c_bg)
+        top_log.pack(fill="x", pady=(0, 10))
+
+        tk.Label(top_log, text="NHẬT KÝ HOẠT ĐỘNG", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 13, "bold")).pack(side="left")
+
+        btn_clear_log = tk.Button(top_log, text="Xóa Nhật Ký", bg=self.c_card, fg=self.c_danger, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 8), command=lambda: self.txt_logs.delete("1.0", "end"))
+        btn_clear_log.pack(side="right")
+
+        log_frame = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
+        log_frame.pack(fill="both", expand=True)
+
+        self.txt_logs = tk.Text(log_frame, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=0, font=("Consolas", 9))
+        log_scroll = ttk.Scrollbar(log_frame, orient="vertical", command=self.txt_logs.yview)
+        self.txt_logs.configure(yscrollcommand=log_scroll.set)
+        self.txt_logs.pack(side="left", fill="both", expand=True, padx=4, pady=4)
+        log_scroll.pack(side="right", fill="y")
+
+    # ================= LOGIC & SỰ KIỆN STUDIO =================
     def set_style(self, style):
         self.current_style.set(style)
-        if style == "anime":
-            self.btn_style_anime.config(bg=self.c_primary, fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
-            self.btn_style_real.config(bg=self.c_input, fg=self.c_muted, font=("Segoe UI", 9))
-            self.lbl_lora_status.config(text="Anime Nguyên Bản (Không dùng LoRA)", fg=self.c_muted)
+        is_real = (style == "real")
+        self.btn_style_anime.config(bg=self.c_input if is_real else self.c_active, fg=self.c_muted if is_real else self.c_text)
+        self.btn_style_real.config(bg=self.c_active if is_real else self.c_input, fg=self.c_text if is_real else self.c_muted)
+
+        if self.attached_media_list:
+            self.lbl_lora_status.config(text=f"Đang đính kèm {len(self.attached_media_list)} ảnh mẫu: Tự động bỏ LoRA để tương thích Img2Img", fg=self.c_muted)
+        elif is_real:
+            self.lbl_lora_status.config(text="LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)", fg=self.c_success)
         else:
-            self.btn_style_real.config(bg=self.c_primary, fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
-            self.btn_style_anime.config(bg=self.c_input, fg=self.c_muted, font=("Segoe UI", 9))
-            if self.attached_media_id:
-                self.lbl_lora_status.config(text="Đang đính kèm ảnh mẫu (Tự động bỏ LoRA để tương thích)", fg=self.c_amber)
-            else:
-                self.lbl_lora_status.config(text="LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)", fg=self.c_success)
+            self.lbl_lora_status.config(text="Chế độ Anime nguyên bản, không dùng LoRA", fg=self.c_muted)
 
     def set_profile(self, profile):
         self.current_profile.set(profile)
         for p, btn in [("flash", self.btn_prof_flash), ("pro", self.btn_prof_pro), ("ultra", self.btn_prof_ultra)]:
-            if p == profile:
-                btn.config(bg=self.c_primary, fg="#FFFFFF", font=("Segoe UI", 9, "bold"))
-            else:
-                btn.config(bg=self.c_input, fg=self.c_muted, font=("Segoe UI", 9))
-        
-        # Pro và Ultra chỉ cho phép 1 ảnh
+            active = (p == profile)
+            btn.config(bg=self.c_active if active else self.c_input, fg=self.c_text if active else self.c_muted, font=("Segoe UI", 9, "bold" if active else "normal"))
+
         if profile != "flash" and self.batch_count.get() > 1:
             self.set_batch(1)
 
         self.update_live_cost()
 
-    def on_ratio_changed(self, event=None):
-        self.current_ratio_idx.set(self.cb_ratio.current())
-        self.draw_ratio_preview()
+    def set_size_tier(self, tier):
+        self.current_size_tier.set(tier)
+        for t, btn in [("xl", self.btn_size_xl), ("l", self.btn_size_l), ("m", self.btn_size_m), ("custom", self.btn_size_custom), ("auto", self.btn_size_auto)]:
+            active = (t == tier)
+            btn.config(bg=self.c_active if active else self.c_input, fg=self.c_text if active else self.c_muted, font=("Segoe UI", 8, "bold" if active else "normal"))
 
-    def draw_ratio_preview(self):
-        self.ratio_canvas.delete("all")
-        idx = self.current_ratio_idx.get()
-        if idx >= len(ASPECT_RATIOS):
-            idx = 0
-        _, w, h, _ = ASPECT_RATIOS[idx]
-        
-        # Vẽ khung chữ nhật tỉ lệ
-        max_box = 36
-        if w >= h:
-            rw = max_box
-            rh = max(8, int(max_box * (h / w)))
+        if tier == "custom":
+            self.frame_custom_dims.pack(fill="x", pady=(6, 0))
         else:
-            rh = max_box
-            rw = max(8, int(max_box * (w / h)))
-        
-        x0 = (44 - rw) // 2
-        y0 = (44 - rh) // 2
-        self.ratio_canvas.create_rectangle(x0, y0, x0 + rw, y0 + rh, fill=self.c_card_border, outline=self.c_accent, width=1.5)
+            self.frame_custom_dims.pack_forget()
+
+        self.save_config()
+        self.update_dimensions_and_preview()
+
+    def set_ratio(self, ratio_str):
+        self.current_ratio.set(ratio_str)
+        for r_name, btn in self.ratio_buttons.items():
+            active = (r_name == ratio_str)
+            btn.config(bg=self.c_active if active else self.c_input, fg=self.c_text if active else self.c_muted, font=("Segoe UI", 8, "bold" if active else "normal"))
+
+        self.save_config()
+        self.update_dimensions_and_preview()
+
+    def on_custom_dim_changed(self):
+        if self.current_size_tier.get() == "custom":
+            self.update_dimensions_and_preview()
+
+    def get_selected_dimensions(self):
+        tier = self.current_size_tier.get()
+        ratio = self.current_ratio.get()
+
+        if tier == "custom":
+            try:
+                w = int(self.custom_w.get())
+                h = int(self.custom_h.get())
+            except Exception:
+                w, h = 1024, 1024
+            w = max(256, (w // 16) * 16)
+            h = max(256, (h // 16) * 16)
+            return w, h, f"Tùy Chỉnh ({w}x{h})"
+
+        if tier == "auto" and self.first_attached_dims:
+            bw, bh = self.first_attached_dims
+            scale = (1024.0 * 1024.0 / (bw * bh)) ** 0.5
+            aw = max(384, (int(bw * scale) // 16) * 16)
+            ah = max(384, (int(bh * scale) // 16) * 16)
+            return aw, ah, f"Auto Theo Ảnh Mẫu ({aw}x{ah})"
+
+        # Standard Presets
+        is_xl = (tier == "xl")
+        is_l = (tier == "l")
+        presets = {
+            "9:16": (1104 if is_xl else (944 if is_l else 768), 1824 if is_xl else (1584 if is_l else 1280)),
+            "16:9": (1824 if is_xl else (1584 if is_l else 1280), 1104 if is_xl else (944 if is_l else 768)),
+            "1:1":  (1440 if is_xl else (1216 if is_l else 1024), 1440 if is_xl else (1216 if is_l else 1024)),
+            "3:4":  (1248 if is_xl else (1056 if is_l else 896),  1664 if is_xl else (1408 if is_l else 1152)),
+            "4:3":  (1664 if is_xl else (1408 if is_l else 1152), 1248 if is_xl else (1056 if is_l else 896)),
+            "2:3":  (1184 if is_xl else (1008 if is_l else 832),  1776 if is_xl else (1520 if is_l else 1248)),
+            "3:2":  (1776 if is_xl else (1520 if is_l else 1248), 1184 if is_xl else (1008 if is_l else 832)),
+            "3:5":  (1104 if is_xl else (936 if is_l else 768),   1840 if is_xl else (1568 if is_l else 1280)),
+            "5:3":  (1840 if is_xl else (1568 if is_l else 1280), 1104 if is_xl else (936 if is_l else 768)),
+            "7:9":  (1280 if is_xl else (1088 if is_l else 928),  1664 if is_xl else (1408 if is_l else 1184)),
+            "9:7":  (1664 if is_xl else (1408 if is_l else 1184), 1280 if is_xl else (1088 if is_l else 928)),
+            "1:3":  (720 if is_xl else (608 if is_l else 512),    2160 if is_xl else (1824 if is_l else 1536)),
+            "3:1":  (2160 if is_xl else (1824 if is_l else 1536), 720 if is_xl else (608 if is_l else 512)),
+        }
+        w, h = presets.get(ratio, (1104, 1824))
+        return w, h, f"{ratio} ({tier.upper()})"
+
+    def update_dimensions_and_preview(self):
+        w, h, desc = self.get_selected_dimensions()
+        self.lbl_ratio_title.config(text=f"Tỷ lệ: {self.current_ratio.get()}")
+        self.lbl_ratio_dims.config(text=f"Kích thước: {w} x {h} px ({desc})")
+
+        # Vẽ hình minh họa hình học tỷ lệ chính xác
+        self.ratio_canvas.delete("all")
+        max_box = 40.0
+        if w >= h:
+            bw = max_box
+            bh = max(10.0, max_box * (h / w))
+        else:
+            bh = max_box
+            bw = max(10.0, max_box * (w / h))
+
+        x0 = (48 - bw) / 2
+        y0 = (48 - bh) / 2
+        self.ratio_canvas.create_rectangle(x0, y0, x0 + bw, y0 + bh, fill="#FFFFFF", outline="#CCCCCC", width=1)
 
     def set_batch(self, count):
         if count == 4 and self.current_profile.get() != "flash":
-            messagebox.showwarning("Thông báo", "Số lượng 4 ảnh chỉ khả dụng cho chế độ FLASH (Siêu Tốc)!")
+            messagebox.showinfo("Thông báo", "Số lượng 4 ảnh chỉ hỗ trợ ở chế độ Flash (Siêu Tốc)!")
             return
         self.batch_count.set(count)
-        if count == 1:
-            self.btn_batch1.config(bg=self.c_primary, fg="#FFFFFF", font=("Segoe UI", 8, "bold"))
-            self.btn_batch4.config(bg=self.c_input, fg=self.c_muted, font=("Segoe UI", 8))
-        else:
-            self.btn_batch4.config(bg=self.c_primary, fg="#FFFFFF", font=("Segoe UI", 8, "bold"))
-            self.btn_batch1.config(bg=self.c_input, fg=self.c_muted, font=("Segoe UI", 8))
+        self.btn_batch1.config(bg=self.c_active if count == 1 else self.c_input, fg=self.c_text if count == 1 else self.c_muted, font=("Segoe UI", 8, "bold" if count == 1 else "normal"))
+        self.btn_batch4.config(bg=self.c_active if count == 4 else self.c_input, fg=self.c_text if count == 4 else self.c_muted, font=("Segoe UI", 8, "bold" if count == 4 else "normal"))
         self.update_live_cost()
 
     def update_live_cost(self):
         prof = self.current_profile.get()
-        cfg = MODELS.get(prof, MODELS["flash"])
-        cnt = self.batch_count.get()
-        cost = cfg["cost4"] if cnt == 4 else cfg["cost1"]
-        self.lbl_cost_badge.config(text=f"Chi phí ước tính: {cost:,} Credits ({cfg['name']} - {cnt} Ảnh)")
+        b = self.batch_count.get()
+        cost = MODELS.get(prof, {}).get(f"cost{b}", 100)
 
+        # Kiểm tra tài khoản có đủ credit
+        eligible_acc = None
+        for a in self.accounts:
+            if a.get("credits", 0) >= cost and a.get("token"):
+                eligible_acc = a
+                break
+
+        if eligible_acc:
+            self.lbl_cost_badge.config(text=f"Chi phí: {cost:,} CR | Khả dụng: {eligible_acc.get('email', 'N/A')} ({eligible_acc.get('credits', 0):,} CR) | Đủ điều kiện", fg=self.c_success)
+            self.btn_generate.config(state="normal")
+        else:
+            self.lbl_cost_badge.config(text=f"Chi phí: {cost:,} CR | Cảnh báo: Không có tài khoản nào đủ {cost:,} CR!", fg=self.c_danger)
+
+    def update_header(self):
+        tot = self.get_total_credits()
+        self.lbl_total_credits.config(text=f"Tổng: {tot:,} CR")
+        if self.active_account:
+            self.lbl_active_acc.config(text=f"Tài khoản: {self.active_account.get('email', 'N/A')} | Số dư: {self.active_account.get('credits', 0):,} CR")
+        else:
+            self.lbl_active_acc.config(text="Tài khoản: Chưa kích hoạt | Số dư: 0 CR")
+
+    # ================= MULTI-IMAGE CONTEXT (IMG2IMG) =================
     def pick_reference_image(self):
-        path = filedialog.askopenfilename(title="Chọn ảnh mẫu tham chiếu", filetypes=[("Hình ảnh", "*.png;*.jpg;*.jpeg;*.webp")])
-        if not path:
+        paths = filedialog.askopenfilenames(title="Chọn ảnh tham chiếu", filetypes=[("Hình ảnh", "*.png *.jpg *.jpeg *.webp")])
+        if not paths:
             return
 
-        self.attached_image_name.set("Đang tải ảnh mẫu lên PixAI Cloud qua Proxy...")
-        self.btn_pick_img.config(state="disabled")
+        token = self.active_account.get("token") if self.active_account else ""
+        proxy = self.get_effective_proxy()
 
-        def task():
+        threading.Thread(target=self._upload_reference_images_worker, args=(paths, token, proxy), daemon=True).start()
+
+    def _upload_reference_images_worker(self, paths, token, proxy):
+        for path in paths:
             try:
                 with open(path, "rb") as f:
                     img_bytes = f.read()
 
-                token = self.active_account.get("token") if self.active_account else ""
-                proxy = self.get_effective_proxy()
-                media_id = self.upload_image_to_pixai(img_bytes, token, proxy)
+                pil_img = Image.open(path)
+                if not self.first_attached_dims:
+                    self.first_attached_dims = pil_img.size
 
-                def onSuccess():
-                    self.attached_media_id = media_id
-                    filename = os.path.basename(path)
-                    self.attached_image_name.set(f"Đã đính kèm: {filename} (ID: {media_id})")
-                    self.btn_clear_img.pack(side="left", padx=(6, 0))
-                    self.btn_pick_img.config(state="normal")
-                    self.lbl_lora_status.config(text="Đang đính kèm ảnh mẫu (Tự động bỏ LoRA để tương thích)", fg=self.c_amber)
-                    self.log_message(f"Tải ảnh mẫu thành công! PixAI Media ID: {media_id}", "success")
+                # Upload to PixAI
+                # 1. getUploadUrl
+                res1 = http_graphql({
+                    "query": """mutation getUploadUrl($contentType: String!, $category: String) {
+                        getUploadUrl(contentType: $contentType, category: $category) {
+                            uploadUrl
+                            mediaId
+                        }
+                    }""",
+                    "variables": {"contentType": "image/jpeg", "category": "context-image"}
+                }, token, proxy=proxy, timeout=20)
+                u_info = res1.get("data", {}).get("getUploadUrl", {})
+                upload_url = u_info.get("uploadUrl")
+                media_id = u_info.get("mediaId")
 
-                self.after(0, onSuccess)
+                if upload_url and media_id:
+                    http_request(upload_url, method="PUT", data=img_bytes, headers={"Content-Type": "image/jpeg"}, proxy=proxy, timeout=30)
+                    self.after(0, lambda p=path, m=media_id, im=pil_img: self.add_attached_thumbnail(p, m, im))
             except Exception as e:
-                def onErr():
-                    self.btn_pick_img.config(state="normal")
-                    self.attached_image_name.set("Tải ảnh thất bại: " + str(e))
-                    self.log_message(f"Lỗi tải ảnh mẫu: {e}", "danger")
-                self.after(0, onErr)
+                self.after(0, lambda err=str(e): self.log_message(f"Lỗi tải ảnh mẫu lên: {err}", "error"))
 
-        threading.Thread(target=task, daemon=True).start()
+    def add_attached_thumbnail(self, path, media_id, pil_img):
+        thumb_im = pil_img.copy()
+        thumb_im.thumbnail((50, 50))
+        tk_thumb = ImageTk.PhotoImage(thumb_im)
 
-    def clear_reference_image(self):
-        """Gỡ ảnh tham chiếu và TỰ ĐỘNG BẬT LẠI LoRA nếu đang ở chế độ Thực Tế"""
-        self.attached_media_id = None
-        self.attached_image_name.set("Chưa đính kèm ảnh mẫu (Tạo từ văn bản)")
-        self.btn_clear_img.pack_forget()
-        
-        # Tự động bật lại LoRA
-        if self.current_style.get() == "real":
-            self.lbl_lora_status.config(text="LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)", fg=self.c_success)
-            self.log_message("Đã gỡ ảnh mẫu: Tự động phục hồi LoRA Thực Tế (0.70).", "info")
+        item = {"path": path, "mediaId": media_id, "thumb": tk_thumb}
+        self.attached_media_list.append(item)
+
+        # Build thumbnail card with delete button
+        card = tk.Frame(self.frame_thumbs_container, bg=self.c_card_border, padx=2, pady=2)
+        card.pack(side="left", padx=4)
+
+        lbl_img = tk.Label(card, image=tk_thumb, bg=self.c_card)
+        lbl_img.image = tk_thumb
+        lbl_img.pack()
+
+        btn_del = tk.Button(card, text="X", bg="#3B1C22", fg=self.c_danger, relief="flat", font=("Segoe UI", 7, "bold"), command=lambda c=card, it=item: self.remove_single_reference_image(c, it))
+        btn_del.pack(fill="x")
+
+        self.frame_thumbs_container.pack(fill="x", pady=(6, 0))
+        self.btn_clear_all_img.pack(side="left", padx=(6, 0))
+        self.lbl_attach_name.config(text=f"Đã đính kèm {len(self.attached_media_list)} ảnh mẫu", fg=self.c_success)
+        self.btn_size_auto.pack(side="left", fill="x", expand=True, padx=(2, 0))
+
+        self.set_style(self.current_style.get())
+        self.log_message(f"Đã thêm ảnh tham chiếu: Media ID {media_id}", "info")
+
+    def remove_single_reference_image(self, card_widget, item):
+        card_widget.destroy()
+        if item in self.attached_media_list:
+            self.attached_media_list.remove(item)
+
+        if not self.attached_media_list:
+            self.clear_all_reference_images()
         else:
-            self.lbl_lora_status.config(text="Anime Nguyên Bản (Không dùng LoRA)", fg=self.c_muted)
+            self.lbl_attach_name.config(text=f"Đã đính kèm {len(self.attached_media_list)} ảnh mẫu")
+            self.set_style(self.current_style.get())
 
-    def upload_image_to_pixai(self, img_bytes, token, proxy):
-        q_url = """
-        mutation uploadMedia($input: UploadMediaInput!) {
-            uploadMedia(input: $input) {
-                uploadUrl
-                externalId
-                mediaId
-            }
-        }
-        """
-        payload1 = {"query": q_url, "variables": {"input": {"type": "IMAGE", "provider": "S3"}}}
-        res1 = http_graphql(payload1, token, proxy=proxy, timeout=25)
-        up_data = res1.get("data", {}).get("uploadMedia", {})
-        up_url = up_data.get("uploadUrl")
-        if not up_url:
-            raise Exception("Không lấy được S3 Upload URL: " + str(res1))
+    def clear_all_reference_images(self):
+        for widget in self.frame_thumbs_container.winfo_children():
+            widget.destroy()
+        self.frame_thumbs_container.pack_forget()
+        self.btn_clear_all_img.pack_forget()
+        self.attached_media_list.clear()
+        self.first_attached_dims = None
+        self.lbl_attach_name.config(text="Chưa đính kèm ảnh (Tạo từ văn bản, bật LoRA Thực Tế)", fg=self.c_muted)
+        self.btn_size_auto.pack_forget()
 
-        # PUT lên S3
-        http_request(up_url, method="PUT", data=img_bytes, headers={"Content-Type": "image/jpeg"}, proxy=proxy, timeout=35)
+        if self.current_size_tier.get() == "auto":
+            self.set_size_tier("xl")
 
-        ext_key = up_url.split("?")[0].split("/")[-1]
-        payload2 = {
-            "query": q_url,
-            "variables": {
-                "input": {
-                    "type": "IMAGE",
-                    "provider": "S3",
-                    "externalId": ext_key,
-                    "imageType": "image/jpeg"
-                }
-            }
-        }
-        res2 = http_graphql(payload2, token, proxy=proxy, timeout=25)
-        up_data2 = res2.get("data", {}).get("uploadMedia", {})
-        media_id = up_data2.get("mediaId")
-        if not media_id:
-            raise Exception("Không xác nhận được Media ID từ PixAI: " + str(res2))
-        return media_id
+        self.set_style(self.current_style.get())
+        self.log_message("Đã gỡ toàn bộ ảnh mẫu: Tự động phục hồi LoRA Thực Tế.", "info")
 
-    # ================= QUÁ TRÌNH TẠO ẢNH (TIẾN TRÌNH & AUTO XOAY TÀI KHOẢN) =================
+    # ================= TẠO ẢNH & POLLING KẾT QUẢ =================
     def on_start_generate(self):
         if self.is_generating:
             return
@@ -710,56 +1088,50 @@ class PixAiNexusStudio(tk.Tk):
             return
 
         prof = self.current_profile.get()
-        cfg = MODELS.get(prof, MODELS["flash"])
-        batch = self.batch_count.get()
-        required_cost = cfg["cost4"] if batch == 4 else cfg["cost1"]
+        b = self.batch_count.get()
+        cost = MODELS.get(prof, {}).get(f"cost{b}", 100)
 
-        # TỰ ĐỘNG XOAY TÀI KHOẢN NẾU THIẾU CREDIT
-        if not self.active_account or self.active_account.get("credits", 0) < required_cost:
-            eligible = None
-            for acc in self.accounts:
-                if acc.get("credits", 0) >= required_cost and acc.get("token"):
-                    eligible = acc
-                    break
+        # Tự động xoay tua tài khoản có đủ credit
+        eligible_acc = None
+        for a in self.accounts:
+            if a.get("credits", 0) >= cost and a.get("token"):
+                eligible_acc = a
+                break
 
-            if eligible:
-                self.active_account = eligible
-                self.update_header()
-                self.log_message(f"Tự động xoay tua tài khoản: {eligible.get('email')} (Còn {eligible.get('credits', 0):,} CR)", "info")
-            else:
-                messagebox.showerror("Hết Credits", f"Tất cả tài khoản trong hệ thống đều không đủ {required_cost:,} Credits!\nVui lòng vào tab Quản Lý Tài Khoản để nhận thưởng (+80K) hoặc tạo tài khoản mới.")
-                return
+        if not eligible_acc:
+            messagebox.showerror("Hết Credit", f"Toàn bộ tài khoản không đủ {cost:,} Credit để tạo ảnh! Hãy nhận thưởng hoặc đăng ký tài khoản mới.")
+            return
+
+        if not self.active_account or self.active_account.get("email") != eligible_acc.get("email"):
+            self.active_account = eligible_acc
+            self.update_header()
+            self.log_message(f"Tự động đổi sang tài khoản đủ số dư: {eligible_acc.get('email')} ({eligible_acc.get('credits', 0):,} CR)", "info")
 
         self.is_generating = True
         self.btn_generate.config(state="disabled")
         self.progress_bar.pack(fill="x", pady=(2, 4))
         self.progress_bar.start(10)
-        self.set_step_status("Bước 1/4: Đang kiểm tra phiên tài khoản & cài đặt 18+...")
+        self.lbl_gen_step.config(text="Bước 1/4: Đang chuẩn bị phiên làm việc & Mở khóa 18+ (NSFW)...", fg=self.c_text)
 
-        ratio_info = ASPECT_RATIOS[self.current_ratio_idx.get()]
-        width, height = ratio_info[1], ratio_info[2]
-        negative = self.txt_negative.get("1.0", "end").strip()
-        is_real = (self.current_style.get() == "real")
-        attached_id = self.attached_media_id
+        w, h, _ = self.get_selected_dimensions()
+        neg = self.txt_negative.get("1.0", "end").strip()
+        context_ids = [it["mediaId"] for it in self.attached_media_list]
 
-        threading.Thread(target=self.run_generation_task, args=(self.active_account, prof, is_real, width, height, batch, prompt, negative, attached_id, required_cost), daemon=True).start()
+        threading.Thread(target=self._generate_worker, args=(eligible_acc, prompt, neg, prof, b, w, h, context_ids, cost), daemon=True).start()
 
-    def set_step_status(self, text, color=None):
-        def update():
-            self.lbl_gen_step.config(text=text, fg=color if color else self.c_accent)
-        self.after(0, update)
-
-    def run_generation_task(self, account, profile, is_real, width, height, batch, prompt, negative, attached_id, cost):
-        token = account.get("token", "")
+    def _generate_worker(self, account, prompt, neg, profile, batch_size, width, height, context_ids, cost):
         proxy = self.get_effective_proxy()
+        token = account.get("token")
 
         try:
-            # Tự động gỡ blur NSFW cho tài khoản
-            unblur_nsfw_for_account(token, proxy=proxy)
+            # Xác nhận 18+ với bằng chứng log
+            proof = []
+            unblur_nsfw_for_account(token, proxy=proxy, proof_collector=proof)
+            self.after(0, lambda: self.log_message(f"Xác nhận 18+ cho {account.get('email')}: {''.join(proof)}", "info"))
 
-            self.set_step_status("Bước 2/4: Đang gửi yêu cầu khởi tạo lên GPU PixAI Engine...")
+            self.after(0, lambda: self.lbl_gen_step.config(text=f"Bước 2/4: Đang gửi lệnh khởi tạo tới GPU PixAI ({profile.upper()})..."))
+
             model_id = MODELS[profile]["modelId"]
-
             params = {
                 "modelId": model_id,
                 "inferenceProfile": profile,
@@ -768,30 +1140,27 @@ class PixAiNexusStudio(tk.Tk):
                 "priority": 0,
                 "prompts": prompt,
                 "seed": "",
-                "batchSize": batch,
+                "batchSize": batch_size,
                 "controlNets": [],
                 "extra": {"naturalPrompts": prompt},
-                "promptHelper": {
-                    "forcePromptHelperDetectionSide": "server",
-                    "creativity": "medium"
-                }
+                "promptHelper": {"forcePromptHelperDetectionSide": "server", "creativity": "medium"},
+                "qualityTag": {"prefix": "", "suffix": ""}
             }
 
-            if profile != "flash":
-                params["negativePrompts"] = negative if negative else DEFAULT_NEGATIVE
+            if profile != "flash" or neg != DEFAULT_NEGATIVE:
+                params["negativePrompts"] = neg
 
-            if attached_id:
-                params["contextImages"] = [attached_id]
-                params["qualityTag"] = {"prefix": "", "suffix": ""}
-            else:
-                if is_real:
-                    params["lora"] = {REALISTIC_LORA["versionId"]: REALISTIC_LORA["weight"]}
-                    params["loraParameters"] = [{
-                        "versionId": REALISTIC_LORA["versionId"],
-                        "weight": REALISTIC_LORA["weight"],
-                        "triggerWords": REALISTIC_LORA["triggerWords"],
-                        "positionInfo": {"startIndex": 0, "endIndex": 0}
-                    }]
+            # Context Images hoặc LoRA Realism
+            if context_ids:
+                params["contextImages"] = context_ids
+            elif self.current_style.get() == "real":
+                params["lora"] = {REALISTIC_LORA["versionId"]: REALISTIC_LORA["weight"]}
+                params["loraParameters"] = [{
+                    "versionId": REALISTIC_LORA["versionId"],
+                    "weight": REALISTIC_LORA["weight"],
+                    "triggerWords": REALISTIC_LORA["triggerWords"],
+                    "positionInfo": {"startIndex": 0, "endIndex": 0}
+                }]
 
             payload = {
                 "operationName": "createGenerationTask",
@@ -803,616 +1172,604 @@ class PixAiNexusStudio(tk.Tk):
             }
 
             create_res = http_graphql(payload, token, proxy=proxy, timeout=30)
-            task_node = create_res.get("data", {}).get("createGenerationTask")
-            if not task_node or "id" not in task_node:
-                raise Exception("Server từ chối tạo task: " + str(create_res))
 
-            task_id = task_node["id"]
-            self.log_message(f"Khởi tạo Task ID thành công: {task_id}", "info")
+            errors = create_res.get("errors")
+            if errors:
+                err_msg = errors[0].get("message", "Lỗi server")
+                if "insufficient balance" in err_msg.lower() or "balance" in err_msg.lower():
+                    account["credits"] = 0
+                    self.save_accounts()
+                    self.after(0, lambda: self.on_generation_failed("Tài khoản hết Credit trên máy chủ PixAI!"))
+                    return
+                self.after(0, lambda msg=err_msg: self.on_generation_failed(f"Máy chủ từ chối: {msg}"))
+                return
 
-            # Bước 3: Polling với timeout CHUẨN 300s (5 phút)
-            query_task = """
-            query getTaskMedia($id: ID!) {
-                task(id: $id) {
-                    id
-                    status
-                    parameters
-                    outputs
-                    media {
-                        id
-                        urls {
-                            variant
-                            url
-                        }
-                    }
-                }
-            }
-            """
-            poll_payload = {"query": query_task, "variables": {"id": task_id}}
+            task_obj = create_res.get("data", {}).get("createGenerationTask")
+            if not task_obj or not task_obj.get("id"):
+                self.after(0, lambda: self.on_generation_failed(f"Không nhận được Task ID từ máy chủ: {create_res}"))
+                return
+
+            task_id = task_obj["id"]
+
+            # Polling kết quả chờ render
+            poll_query = """query getTaskMedia($id: ID!) {
+  task(id: $id) {
+    id
+    status
+    parameters
+    outputs
+    media {
+      id
+      urls {
+        variant
+        url
+      }
+    }
+  }
+}"""
+            poll_payload = {"query": poll_query, "variables": {"id": task_id}}
 
             start_t = time.time()
-            completed_data = None
-            wait_sec = 0
-
-            while time.time() - start_t < 300: # 300 giây timeout
+            while time.time() - start_t < 300: # 300s timeout
                 time.sleep(2.5)
-                wait_sec = int(time.time() - start_t)
-                self.set_step_status(f"Bước 3/4: GPU PixAI đang vẽ ảnh ({wait_sec}s)...")
+                elapsed = int(time.time() - start_t)
+                self.after(0, lambda s=elapsed: self.lbl_gen_step.config(text=f"Bước 3/4: Đang render trên GPU PixAI (Đã chờ {s}s)..."))
 
-                try:
-                    poll_res = http_graphql(poll_payload, token, proxy=proxy, timeout=20)
-                except Exception:
-                    continue
-
+                poll_res = http_graphql(poll_payload, token, proxy=proxy, timeout=20)
                 t_node = poll_res.get("data", {}).get("task")
                 if t_node:
                     status = t_node.get("status", "").lower()
                     if status == "completed":
-                        completed_data = t_node
-                        break
+                        server_prompt = t_node.get("parameters", {}).get("prompts", prompt)
+                        seed = t_node.get("outputs", {}).get("seed", 0)
+                        urls = []
+                        media = t_node.get("media", {})
+                        for u in media.get("urls", []):
+                            if u.get("variant", "").upper() == "PUBLIC":
+                                urls.append(u.get("url"))
+                        if not urls and media.get("urls"):
+                            urls.append(media["urls"][0].get("url"))
+
+                        self.after(0, lambda u=urls, sp=server_prompt, sd=seed: self.on_generation_success(account, prompt, sp, sd, u, profile, width, height, cost))
+                        return
                     elif status in ["failed", "error"]:
-                        raise Exception(f"Tác vụ bị lỗi trên GPU PixAI ({status})")
+                        self.after(0, lambda: self.on_generation_failed(f"GPU PixAI báo tác vụ thất bại ({status})"))
+                        return
 
-            if not completed_data:
-                raise Exception("Quá thời gian chờ (Timeout 300s) xử lý trên GPU PixAI!")
-
-            self.set_step_status("Bước 4/4: Hoàn tất! Đang tải và mã hóa lưu trữ ảnh...")
-
-            # Trích xuất dữ liệu
-            server_prompt = completed_data.get("parameters", {}).get("prompts", prompt)
-            seed = completed_data.get("outputs", {}).get("seed", 0)
-            media = completed_data.get("media", {})
-            urls_list = media.get("urls", [])
-
-            image_urls = []
-            for u in urls_list:
-                if u.get("variant") == "PUBLIC":
-                    image_urls.append(u.get("url"))
-            if not image_urls and urls_list:
-                image_urls.append(urls_list[0].get("url"))
-
-            # Trừ credit
-            account["credits"] = max(0, account.get("credits", 0) - cost)
-            self.save_accounts()
-
-            # Lưu vào Kho Lịch Sử Được Mã Hóa
-            for img_url in image_urls:
-                hist_item = {
-                    "id": str(int(time.time() * 1000)) + "_" + str(random.randint(100, 999)),
-                    "timestamp": int(time.time() * 1000),
-                    "imageUrl": img_url,
-                    "originalPrompt": prompt,
-                    "serverPrompt": server_prompt,
-                    "modelName": "Tsubaki 3",
-                    "profile": profile,
-                    "isReal": is_real,
-                    "seed": seed,
-                    "width": width,
-                    "height": height
-                }
-                self.history.insert(0, hist_item)
-            save_encrypted_history(self.history)
-
-            # Cập nhật giao diện
-            def on_done():
-                self.generated_images = image_urls
-                self.current_image_idx = 0
-                self.last_original_prompt = prompt
-                self.last_server_prompt = server_prompt
-                self.lbl_res_original.config(text=prompt[:80] + ("..." if len(prompt) > 80 else ""))
-                self.lbl_res_server.config(text=server_prompt[:80] + ("..." if len(server_prompt) > 80 else ""))
-                self.display_current_image()
-                self.update_header()
-                self.refresh_history_list()
-                self.log_message(f"Tạo ảnh thành công ({len(image_urls)} ảnh)! Đã lưu vào kho lịch sử mã hóa.", "success")
-                self.finish_generate("Khởi tạo thành công 100%!", self.c_success)
-
-            self.after(0, on_done)
+            self.after(0, lambda: self.on_generation_failed("Quá thời gian chờ (Timeout 300s) kết xuất trên GPU PixAI!"))
 
         except Exception as e:
-            def on_fail():
-                self.log_message(f"Khởi tạo thất bại: {e}", "danger")
-                self.finish_generate(f"Thất bại: {e}", self.c_danger)
-                messagebox.showerror("Lỗi Tạo Ảnh", str(e))
-            self.after(0, on_fail)
+            self.after(0, lambda err=str(e): self.on_generation_failed(f"Lỗi ngoại lệ: {err}"))
 
-    def finish_generate(self, status_text, color):
+    def on_generation_success(self, account, orig_prompt, server_prompt, seed, urls, profile, width, height, cost):
         self.is_generating = False
-        self.btn_generate.config(state="normal")
         self.progress_bar.stop()
         self.progress_bar.pack_forget()
-        self.lbl_gen_step.config(text=status_text, fg=color)
+        self.btn_generate.config(state="normal")
+        self.lbl_gen_step.config(text="Bước 4/4: Khởi tạo hoàn tất 100%! Tác vụ thành công.", fg=self.c_success)
 
-    # ================= HIỂN THỊ PREVIEW & CAROUSEL =================
-    def display_current_image(self):
-        if not self.generated_images:
-            self.btn_download_cur.config(state="disabled")
-            self.btn_zoom_cur.config(state="disabled")
-            self.carousel_bar.pack_forget()
-            return
+        account["credits"] = max(0, account.get("credits", 0) - cost)
+        self.save_accounts()
+        self.update_header()
+        self.update_live_cost()
 
-        total = len(self.generated_images)
+        self.last_original_prompt = orig_prompt
+        self.last_server_prompt = server_prompt
+        self.lbl_orig_prompt.config(text=orig_prompt)
+        self.lbl_server_prompt.config(text=server_prompt)
+
+        self.generated_images = urls
+        self.current_image_idx = 0
+
+        # Lưu vào lịch sử mã hóa
+        for u in urls:
+            hist_item = {
+                "id": f"hist_{int(time.time() * 1000)}_{random.randint(100, 999)}",
+                "timestamp": int(time.time() * 1000),
+                "imageUrl": u,
+                "originalPrompt": orig_prompt,
+                "serverPrompt": server_prompt,
+                "modelName": "Tsubaki 3",
+                "profile": profile,
+                "isReal": (self.current_style.get() == "real"),
+                "seed": seed,
+                "width": width,
+                "height": height
+            }
+            self.history.insert(0, hist_item)
+        save_encrypted_history(self.history)
+        self.refresh_history_table()
+
+        # Hiển thị Carousel & Preview
+        if len(urls) > 1:
+            self.frame_carousel.pack(fill="x", pady=4)
+        else:
+            self.frame_carousel.pack_forget()
+
         self.btn_download_cur.config(state="normal")
         self.btn_zoom_cur.config(state="normal")
+        self.show_current_preview_image()
+        self.log_message(f"Khởi tạo thành công {len(urls)} ảnh! Đã lưu vào kho lịch sử mã hóa.", "success")
 
-        if total > 1:
-            self.carousel_bar.pack(fill="x")
-            self.lbl_carousel_idx.config(text=f"Ảnh {self.current_image_idx + 1} / {total}")
-            self.btn_prev_img.config(state="normal" if self.current_image_idx > 0 else "disabled")
-            self.btn_next_img.config(state="normal" if self.current_image_idx < total - 1 else "disabled")
-        else:
-            self.carousel_bar.pack_forget()
+    def on_generation_failed(self, error_message):
+        self.is_generating = False
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
+        self.btn_generate.config(state="normal")
+        self.lbl_gen_step.config(text=f"Thất bại: {error_message}", fg=self.c_danger)
+        self.log_message(f"Tạo ảnh thất bại: {error_message}", "error")
+        messagebox.showerror("Lỗi Khởi Tạo", error_message)
 
-        url = self.generated_images[self.current_image_idx]
-        self.load_image_to_label(url, self.lbl_image_display, max_w=680, max_h=520)
+    def show_current_preview_image(self):
+        if not self.generated_images:
+            return
+        idx = self.current_image_idx
+        self.lbl_carousel_idx.config(text=f"Ảnh {idx + 1} / {len(self.generated_images)}")
+        url = self.generated_images[idx]
 
-    def prev_image(self):
+        threading.Thread(target=self._load_preview_canvas_worker, args=(url,), daemon=True).start()
+
+    def _load_preview_canvas_worker(self, url):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = resp.read()
+            pil_img = Image.open(io.BytesIO(data) if "io" in globals() else __import__("io").BytesIO(data))
+            
+            # Scale to fit canvas
+            cw = self.preview_canvas.winfo_width() or 600
+            ch = self.preview_canvas.winfo_height() or 500
+            pil_img.thumbnail((cw, ch), Image.Resampling.LANCZOS)
+            tk_img = ImageTk.PhotoImage(pil_img)
+
+            self.after(0, lambda: self._render_preview_tk(tk_img))
+        except Exception:
+            pass
+
+    def _render_preview_tk(self, tk_img):
+        self.preview_canvas.delete("all")
+        cw = self.preview_canvas.winfo_width() / 2
+        ch = self.preview_canvas.winfo_height() / 2
+        self.preview_canvas.image = tk_img
+        self.preview_canvas.create_image(cw, ch, image=tk_img, anchor="center")
+
+    def on_prev_image(self):
         if self.current_image_idx > 0:
             self.current_image_idx -= 1
-            self.display_current_image()
+            self.show_current_preview_image()
 
-    def next_image(self):
+    def on_next_image(self):
         if self.current_image_idx < len(self.generated_images) - 1:
             self.current_image_idx += 1
-            self.display_current_image()
+            self.show_current_preview_image()
 
     def download_current_image(self):
         if not self.generated_images:
             return
         url = self.generated_images[self.current_image_idx]
-        save_path = filedialog.asksaveasfilename(defaultextension=".jpg", filetypes=[("JPEG Image", "*.jpg"), ("PNG Image", "*.png")])
-        if not save_path:
+        fpath = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG Image", "*.png")], initialfile=f"PixAI_Nexus_{int(time.time())}.png")
+        if not fpath:
             return
 
-        def task():
+        def _dl():
             try:
-                data = http_request(url, method="GET", timeout=25)
-                with open(save_path, "wb") as f:
-                    f.write(data)
-                self.log_message(f"Đã lưu ảnh về: {save_path}", "success")
-                messagebox.showinfo("Thành Công", f"Đã lưu ảnh thành công vào:\n{save_path}")
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    with open(fpath, "wb") as f:
+                        f.write(resp.read())
+                self.after(0, lambda: messagebox.showinfo("Thành công", f"Đã lưu ảnh thành công vào:\n{fpath}"))
             except Exception as e:
-                messagebox.showerror("Lỗi Tải", f"Không thể tải ảnh: {e}")
-
-        threading.Thread(target=task, daemon=True).start()
+                self.after(0, lambda err=str(e): messagebox.showerror("Lỗi", f"Không thể lưu ảnh: {err}"))
+        threading.Thread(target=_dl, daemon=True).start()
 
     def zoom_current_image(self):
         if not self.generated_images:
             return
         url = self.generated_images[self.current_image_idx]
-        self.open_fullscreen_zoom(url, self.last_original_prompt, self.last_server_prompt)
-
-    def open_fullscreen_zoom(self, url, og_prompt, sv_prompt):
         top = tk.Toplevel(self)
-        top.title("Phóng To Toàn Màn Hình - PixAI Nexus")
-        top.geometry("1000x800")
-        top.configure(bg="#0B0D12")
+        top.title("Xem Ảnh Toàn Màn Hình - PixAI Nexus")
+        top.geometry("900x900")
+        top.configure(bg=self.c_bg)
 
-        lbl_zoom = tk.Label(top, bg="#0B0D12", text="Đang tải ảnh độ phân giải gốc...", fg=self.c_muted, font=("Segoe UI", 11))
-        lbl_zoom.pack(fill="both", expand=True)
+        lbl = tk.Label(top, bg=self.c_bg)
+        lbl.pack(fill="both", expand=True)
 
-        bot = tk.Frame(top, bg="#141720", padx=12, pady=8)
-        bot.pack(fill="x", side="bottom")
-
-        tk.Label(bot, text="Server Prompt: " + sv_prompt[:90], bg="#141720", fg=self.c_success, font=("Segoe UI", 8)).pack(side="left")
-
-        def save_this():
-            save_path = filedialog.asksaveasfilename(parent=top, defaultextension=".jpg", filetypes=[("JPEG Image", "*.jpg")])
-            if save_path:
-                try:
-                    data = http_request(url, method="GET", timeout=25)
-                    with open(save_path, "wb") as f:
-                        f.write(data)
-                    messagebox.showinfo("Thành Công", "Đã lưu ảnh thành công!", parent=top)
-                except Exception as e:
-                    messagebox.showerror("Lỗi", str(e), parent=top)
-
-        btn_dl = tk.Button(bot, text="Tải Ảnh Về Máy", bg=self.c_primary, fg="#FFFFFF", relief="flat", padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=save_this)
-        btn_dl.pack(side="right")
-
-        self.load_image_to_label(url, lbl_zoom, max_w=980, max_h=720)
-
-    def load_image_to_label(self, url, label, max_w, max_h):
-        def task():
+        def _load():
             try:
-                # Cache ảnh mã hóa bảo mật
-                hash_key = hashlib.md5(url.encode()).hexdigest()
-                cached_enc = os.path.join(CACHE_DIR, f"{hash_key}.enc")
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=25) as resp:
+                    data = resp.read()
+                im = Image.open(__import__("io").BytesIO(data))
+                im.thumbnail((880, 880), Image.Resampling.LANCZOS)
+                tk_im = ImageTk.PhotoImage(im)
+                self.after(0, lambda: lbl.config(image=tk_im))
+                lbl.image = tk_im
+            except Exception:
+                pass
+        threading.Thread(target=_load, daemon=True).start()
 
-                if os.path.exists(cached_enc):
-                    with open(cached_enc, "rb") as f:
-                        enc = f.read()
-                    data = decrypt_bytes(enc)
-                else:
-                    data = http_request(url, method="GET", timeout=25)
-                    # Lưu cache mã hóa
-                    with open(cached_enc, "wb") as f:
-                        f.write(encrypt_bytes(data))
+    # ================= QUẢN LÝ TÀI KHOẢN & AUTO-REG =================
+    def on_add_account_token(self):
+        token = self.ent_new_token.get().strip()
+        if not token:
+            messagebox.showwarning("Cảnh báo", "Vui lòng nhập Bearer Token!")
+            return
+        if token.startswith("Bearer "):
+            token = token[7:].strip()
 
-                # Render PIL Image
-                import io
-                img = Image.open(io.BytesIO(data))
-                img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
-                photo = ImageTk.PhotoImage(img)
+        threading.Thread(target=self._add_single_token_worker, args=(token,), daemon=True).start()
 
-                def show():
-                    label.config(image=photo, text="")
-                    label.image = photo
+    def _add_single_token_worker(self, token):
+        proxy = self.get_effective_proxy()
+        quota = get_account_quota(token, proxy=proxy)
+        email = f"acc_{int(time.time() * 1000) % 100000}@nexus.com"
 
-                self.after(0, show)
-            except Exception as e:
-                def on_err():
-                    label.config(text=f"Lỗi tải ảnh: {e}", image="")
-                self.after(0, on_err)
+        for a in self.accounts:
+            if a.get("token") == token:
+                a["credits"] = quota
+                self.save_accounts()
+                self.after(0, lambda: self._on_accounts_updated("Đã cập nhật số dư cho token hiện có."))
+                return
 
-        threading.Thread(target=task, daemon=True).start()
+        new_acc = {"email": email, "token": token, "credits": quota}
+        self.accounts.insert(0, new_acc)
+        if not self.active_account:
+            self.active_account = new_acc
+        self.save_accounts()
+        self.after(0, lambda: self._on_accounts_updated(f"Đã thêm tài khoản {email} ({quota:,} CR)"))
 
-    def copy_original_prompt(self):
-        self.clipboard_clear()
-        self.clipboard_append(self.last_original_prompt)
-        messagebox.showinfo("Đã Sao Chép", "Đã sao chép Prompt Gốc vào Clipboard!")
+    def on_auto_register_account(self):
+        self.btn_auto_reg.config(state="disabled")
+        self.log_message("Bắt đầu tự động đăng ký tài khoản PixAI mới ngầm...", "info")
 
-    def copy_server_prompt(self):
-        self.clipboard_clear()
-        self.clipboard_append(self.last_server_prompt)
-        messagebox.showinfo("Đã Sao Chép", "Đã sao chép Prompt Server Sửa vào Clipboard!")
+        proxy = self.get_effective_proxy()
+        threading.Thread(target=self._auto_register_worker, args=(proxy,), daemon=True).start()
 
-    # ================= TAB 2: QUẢN LÝ TÀI KHOẢN =================
-    def build_accounts_tab(self):
-        container = tk.Frame(self.tab_accounts, bg=self.c_bg, padx=12, pady=12)
-        container.pack(fill="both", expand=True)
+    def _auto_register_worker(self, proxy):
+        try:
+            # Sinh email ngẫu nhiên & mật khẩu
+            rand_id = random.randint(100000, 999999)
+            email = f"nexus_user_{int(time.time())}_{rand_id}@pixai-nexus.internal"
+            password = f"NexusPass@{rand_id}X!"
 
-        # Toolbar các nút hành động (BỎ TOÀN BỘ DẤU [...])
-        toolbar = tk.Frame(container, bg=self.c_bg)
-        toolbar.pack(fill="x", pady=(0, 10))
+            # Gửi đăng ký trực tiếp API PixAI
+            reg_payload = {
+                "operationName": "signup",
+                "variables": {
+                    "email": email,
+                    "password": password
+                },
+                "query": """mutation signup($email: String!, $password: String!) {
+  signup(email: $email, password: $password) {
+    token
+    user {
+      id
+      email
+    }
+  }
+}"""
+            }
+            res = http_graphql(reg_payload, token="", proxy=proxy, timeout=25)
+            token = res.get("data", {}).get("signup", {}).get("token")
 
-        btn_daily = tk.Button(toolbar, text="Nhận Daily (+10K)", bg=self.c_card, fg=self.c_success, activebackground=self.c_card_border, relief="flat", padx=12, pady=6, font=("Segoe UI", 9, "bold"), command=self.claim_daily_all)
-        btn_daily.pack(side="left", padx=(0, 6))
+            if not token:
+                # Nếu API signup yêu cầu captcha, fallback tạo guest token
+                guest_payload = {
+                    "operationName": "createGuestSession",
+                    "variables": {},
+                    "query": """mutation createGuestSession {
+  createGuestSession {
+    token
+  }
+}"""
+                }
+                res_g = http_graphql(guest_payload, token="", proxy=proxy, timeout=20)
+                token = res_g.get("data", {}).get("createGuestSession", {}).get("token")
 
-        btn_full = tk.Button(toolbar, text="Full Thưởng (+80K)", bg=self.c_card, fg=self.c_amber, activebackground=self.c_card_border, relief="flat", padx=12, pady=6, font=("Segoe UI", 9, "bold"), command=self.claim_full_all)
-        btn_full.pack(side="left", padx=(0, 6))
+            if token:
+                # Tự động nhận thưởng và mở khóa 18+
+                claim_daily(token, proxy=proxy)
+                claim_all_quests(token, proxy=proxy)
+                unblur_nsfw_for_account(token, proxy=proxy)
+                quota = get_account_quota(token, proxy=proxy)
 
-        btn_sync = tk.Button(toolbar, text="Đồng Bộ Số Dư", bg=self.c_card, fg=self.c_accent, activebackground=self.c_card_border, relief="flat", padx=12, pady=6, font=("Segoe UI", 9, "bold"), command=self.sync_all_credits)
-        btn_sync.pack(side="left", padx=(0, 6))
+                new_acc = {"email": email, "token": token, "credits": quota}
+                self.accounts.insert(0, new_acc)
+                if not self.active_account:
+                    self.active_account = new_acc
+                self.save_accounts()
 
-        btn_unblur = tk.Button(toolbar, text="Xác Nhận 18+ (Tắt Mờ)", bg=self.c_card, fg="#A78BFA", activebackground=self.c_card_border, relief="flat", padx=12, pady=6, font=("Segoe UI", 9, "bold"), command=self.unblur_all_accounts)
-        btn_unblur.pack(side="left")
+                self.after(0, lambda: self._on_accounts_updated(f"Tự đăng ký thành công: {email} với {quota:,} CR!"))
+            else:
+                self.after(0, lambda: self.log_message(f"Đăng ký thất bại: Máy chủ yêu cầu captcha hoặc từ chối ({res})", "error"))
 
-        # Treeview danh sách tài khoản
-        tree_frame = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
-        tree_frame.pack(fill="both", expand=True)
+        except Exception as e:
+            self.after(0, lambda err=str(e): self.log_message(f"Lỗi tự đăng ký: {err}", "error"))
+        finally:
+            self.after(0, lambda: self.btn_auto_reg.config(state="normal"))
 
-        cols = ("status", "email", "credits", "token_preview")
-        self.tree_acc = ttk.Treeview(tree_frame, columns=cols, show="headings", selectmode="browse")
-        self.tree_acc.heading("status", text="Trạng Thái")
-        self.tree_acc.heading("email", text="Email Tài Khoản")
-        self.tree_acc.heading("credits", text="Số Dư Credits")
-        self.tree_acc.heading("token_preview", text="Mã Token Phiên (JWT)")
-
-        self.tree_acc.column("status", width=120, anchor="center")
-        self.tree_acc.column("email", width=280)
-        self.tree_acc.column("credits", width=140, anchor="e")
-        self.tree_acc.column("token_preview", width=400)
-
-        scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree_acc.yview)
-        self.tree_acc.configure(yscrollcommand=scrollbar.set)
-
-        self.tree_acc.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        self.tree_acc.bind("<Double-1>", self.on_select_account)
-
+    def _on_accounts_updated(self, msg):
+        self.ent_new_token.delete(0, "end")
         self.refresh_accounts_table()
+        self.update_header()
+        self.update_live_cost()
+        self.log_message(msg, "success")
+        messagebox.showinfo("Thành công", msg)
 
     def refresh_accounts_table(self):
-        for item in self.tree_acc.get_children():
-            self.tree_acc.delete(item)
-
+        for item in self.acc_tree.get_children():
+            self.acc_tree.delete(item)
         for acc in self.accounts:
-            is_active = (self.active_account and acc.get("email") == self.active_account.get("email"))
-            status = "ĐANG DÙNG" if is_active else "Sẵn Sàng"
-            tok = acc.get("token", "")
-            preview = (tok[:22] + "...") if len(tok) > 22 else tok
-            self.tree_acc.insert("", "end", values=(status, acc.get("email"), f"{acc.get('credits', 0):,} CR", preview))
+            is_active = (self.active_account and self.active_account.get("email") == acc.get("email"))
+            status = "Đang Hoạt Động" if is_active else "Sẵn Sàng"
+            email_display = ("* " if is_active else "") + acc.get("email", "Unknown")
+            self.acc_tree.insert("", "end", values=(email_display, f"{acc.get('credits', 0):,} CR", status))
 
-    def on_select_account(self, event):
-        sel = self.tree_acc.selection()
+    def on_select_active_account(self, event):
+        sel = self.acc_tree.selection()
         if not sel:
             return
-        item = self.tree_acc.item(sel[0])
-        email = item["values"][1]
-        for acc in self.accounts:
-            if acc.get("email") == email:
-                self.active_account = acc
+        idx = self.acc_tree.index(sel[0])
+        if 0 <= idx < len(self.accounts):
+            self.active_account = self.accounts[idx]
+            self.refresh_accounts_table()
+            self.update_header()
+            self.update_live_cost()
+            self.log_message(f"Đã chọn làm việc với tài khoản: {self.active_account.get('email')}", "info")
+
+    def on_sync_credits(self):
+        proxy = self.get_effective_proxy()
+        def _sync():
+            for acc in self.accounts:
+                t = acc.get("token")
+                if t:
+                    acc["credits"] = get_account_quota(t, proxy=proxy)
+            self.save_accounts()
+            self.after(0, lambda: self._on_accounts_updated("Đồng bộ số dư toàn bộ tài khoản hoàn tất."))
+        threading.Thread(target=_sync, daemon=True).start()
+
+    def on_claim_daily(self):
+        proxy = self.get_effective_proxy()
+        def _claim():
+            succ = 0
+            for acc in self.accounts:
+                t = acc.get("token")
+                if t and claim_daily(t, proxy=proxy):
+                    succ += 1
+                    acc["credits"] = get_account_quota(t, proxy=proxy)
+            self.save_accounts()
+            self.after(0, lambda: self._on_accounts_updated(f"Nhận Daily thành công cho {succ} tài khoản!"))
+        threading.Thread(target=_claim, daemon=True).start()
+
+    def on_claim_quests(self):
+        proxy = self.get_effective_proxy()
+        def _quests():
+            total_q = 0
+            for acc in self.accounts:
+                t = acc.get("token")
+                if t:
+                    total_q += claim_all_quests(t, proxy=proxy)
+                    acc["credits"] = get_account_quota(t, proxy=proxy)
+            self.save_accounts()
+            self.after(0, lambda: self._on_accounts_updated(f"Đã hoàn thành {total_q} lượt nhận thưởng nhiệm vụ!"))
+        threading.Thread(target=_quests, daemon=True).start()
+
+    def on_unblur_all(self):
+        proxy = self.get_effective_proxy()
+        def _unblur():
+            for acc in self.accounts:
+                t = acc.get("token")
+                if t:
+                    unblur_nsfw_for_account(t, proxy=proxy)
+            self.after(0, lambda: self.log_message("Đã gửi yêu cầu mở khóa 18+ và bỏ làm mờ nhạy cảm cho toàn bộ tài khoản.", "success"))
+            self.after(0, lambda: messagebox.showinfo("Thành công", "Đã mở khóa 18+ toàn bộ tài khoản!"))
+        threading.Thread(target=_unblur, daemon=True).start()
+
+    def on_clear_accounts(self):
+        if messagebox.askyesno("Xác nhận", "Bạn có chắc chắn muốn xóa toàn bộ danh sách tài khoản?"):
+            self.accounts.clear()
+            self.active_account = None
+            self.save_accounts()
+            self.refresh_accounts_table()
+            self.update_header()
+            self.update_live_cost()
+            self.log_message("Đã xóa toàn bộ tài khoản.", "info")
+
+    def on_import_text_dialog(self):
+        top = tk.Toplevel(self)
+        top.title("Nhập Danh Sách Token Hàng Loạt")
+        top.geometry("600x400")
+        top.configure(bg=self.c_bg)
+
+        tk.Label(top, text="Dán danh sách token (mỗi dòng 1 token hoặc email:token):", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w", padx=12, pady=(10, 4))
+        txt = tk.Text(top, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid")
+        txt.pack(fill="both", expand=True, padx=12, pady=(0, 10))
+
+        def _do_import():
+            raw_text = txt.get("1.0", "end").strip()
+            if not raw_text:
+                return
+            count = 0
+            for line in raw_text.splitlines():
+                l = line.strip()
+                if not l:
+                    continue
+                parts = l.split(":")
+                token = parts[-1].strip()
+                if token.startswith("Bearer "):
+                    token = token[7:].strip()
+                if len(token) >= 20:
+                    email = parts[0].strip() if len(parts) > 1 else f"acc_{int(time.time()*1000)%100000}_{random.randint(10,99)}@nexus.com"
+                    self.accounts.append({"email": email, "token": token, "credits": 0})
+                    count += 1
+            self.save_accounts()
+            top.destroy()
+            self.on_sync_credits()
+            messagebox.showinfo("Thành công", f"Đã nhập {count} tài khoản! Đang đồng bộ số dư...")
+
+        btn = tk.Button(top, text="Nhập Vào Danh Sách", bg="#E0E0E0", fg="#0A0A0A", relief="solid", bd=1, padx=16, pady=6, font=("Segoe UI", 9, "bold"), command=_do_import)
+        btn.pack(pady=(0, 12))
+
+    def on_import_json_dialog(self):
+        fpath = filedialog.askopenfilename(title="Chọn file backup JSON", filetypes=[("JSON Files", "*.json")])
+        if not fpath:
+            return
+        try:
+            with open(fpath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                self.accounts.extend(data)
+                self.save_accounts()
                 self.refresh_accounts_table()
                 self.update_header()
-                self.log_message(f"Đã chọn tài khoản hoạt động: {email}", "info")
-                messagebox.showinfo("Đã Chọn", f"Đã chuyển sang tài khoản:\n{email}")
-                break
+                self.update_live_cost()
+                messagebox.showinfo("Thành công", f"Đã nhập thành công {len(data)} tài khoản từ JSON!")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể đọc file JSON: {e}")
 
-    def claim_daily_all(self):
-        def task():
-            self.log_message("Đang nhận Daily (+10K) cho toàn bộ tài khoản...", "info")
-            proxy = self.get_effective_proxy()
-            for acc in self.accounts:
-                tok = acc.get("token")
-                if tok:
-                    try:
-                        http_request("https://api.pixai.art/v2/quest-v2/daily-claim", method="POST", headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}, proxy=proxy, timeout=12)
-                        acc["credits"] = acc.get("credits", 0) + 10000
-                    except Exception:
-                        pass
-            self.save_accounts()
-            self.after(0, lambda: [self.refresh_accounts_table(), self.update_header(), messagebox.showinfo("Thành Công", "Đã nhận thưởng Daily hàng loạt!")])
-        threading.Thread(target=task, daemon=True).start()
-
-    def claim_full_all(self):
-        def task():
-            self.log_message("Đang nhận Full Thưởng (+80K) cho toàn bộ tài khoản...", "info")
-            proxy = self.get_effective_proxy()
-            endpoints = [
-                "https://api.pixai.art/v2/quest-v2/daily-claim",
-                "https://api.pixai.art/v2/quest-v2/featured-quests-claim",
-                "https://api.pixai.art/v2/quest-v2/social-quests-claim"
-            ]
-            for acc in self.accounts:
-                tok = acc.get("token")
-                if tok:
-                    for ep in endpoints:
-                        try:
-                            http_request(ep, method="POST", headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}, proxy=proxy, timeout=10)
-                        except Exception:
-                            pass
-                    acc["credits"] = acc.get("credits", 0) + 80000
-            self.save_accounts()
-            self.after(0, lambda: [self.refresh_accounts_table(), self.update_header(), messagebox.showinfo("Thành Công", "Đã nhận Full Thưởng hàng loạt!")])
-        threading.Thread(target=task, daemon=True).start()
-
-    def sync_all_credits(self):
-        def task():
-            self.log_message("Đang đồng bộ số dư Credits từ Server PixAI...", "info")
-            proxy = self.get_effective_proxy()
-            q = {"query": "query { me { credit } }"}
-            for acc in self.accounts:
-                tok = acc.get("token")
-                if tok:
-                    try:
-                        res = http_graphql(q, tok, proxy=proxy, timeout=10)
-                        me = res.get("data", {}).get("me", {})
-                        if "credit" in me:
-                            acc["credits"] = me["credit"]
-                    except Exception:
-                        pass
-            self.save_accounts()
-            self.after(0, lambda: [self.refresh_accounts_table(), self.update_header(), messagebox.showinfo("Thành Công", "Đã đồng bộ số dư thành công!")])
-        threading.Thread(target=task, daemon=True).start()
-
-    def unblur_all_accounts(self):
-        def task():
-            self.log_message("Đang xác nhận 18+ và tắt làm mờ nhạy cảm cho toàn bộ tài khoản...", "info")
-            proxy = self.get_effective_proxy()
-            for acc in self.accounts:
-                tok = acc.get("token")
-                if tok:
-                    unblur_nsfw_for_account(tok, proxy=proxy)
-            self.after(0, lambda: messagebox.showinfo("Thành Công", "Đã hoàn tất xác nhận 18+ và tắt mờ nhạy cảm cho toàn bộ tài khoản!"))
-        threading.Thread(target=task, daemon=True).start()
-
-    # ================= TAB 3: KHO LỊCH SỬ MÃ HÓA =================
-    def build_history_tab(self):
-        container = tk.Frame(self.tab_history, bg=self.c_bg, padx=12, pady=12)
-        container.pack(fill="both", expand=True)
-
-        top_bar = tk.Frame(container, bg=self.c_bg)
-        top_bar.pack(fill="x", pady=(0, 8))
-
-        tk.Label(top_bar, text="KHO LỊCH SỬ KHỞI TẠO (MÃ HÓA BẢO MẬT)", bg=self.c_bg, fg=self.c_accent, font=("Segoe UI", 10, "bold")).pack(side="left")
-
-        btn_clear_hist = tk.Button(top_bar, text="Xóa Lịch Sử", bg="#3B1C22", fg=self.c_danger, relief="flat", padx=10, pady=3, font=("Segoe UI", 8), command=self.clear_all_history)
-        btn_clear_hist.pack(side="right")
-
-        # Khung danh sách lịch sử cuộn
-        list_frame = tk.Frame(container, bg=self.c_card, bd=1, relief="solid")
-        list_frame.pack(fill="both", expand=True)
-
-        self.hist_canvas = tk.Canvas(list_frame, bg=self.c_card, highlightthickness=0)
-        scrollbar = ttk.Scrollbar(list_frame, orient="vertical", command=self.hist_canvas.yview)
-        self.hist_scroll_frame = tk.Frame(self.hist_canvas, bg=self.c_card)
-        self.hist_scroll_frame.bind("<Configure>", lambda e: self.hist_canvas.configure(scrollregion=self.hist_canvas.bbox("all")))
-        self.hist_canvas.create_window((0, 0), window=self.hist_scroll_frame, anchor="nw", width=1140)
-        self.hist_canvas.configure(yscrollcommand=scrollbar.set)
-
-        self.hist_canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        self.refresh_history_list()
-
-    def refresh_history_list(self):
-        for widget in self.hist_scroll_frame.winfo_children():
-            widget.destroy()
-
-        if not self.history:
-            tk.Label(self.hist_scroll_frame, text="Chưa có dữ liệu lịch sử nào được ghi nhận.", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 10), pady=40).pack(fill="x")
+    def on_export_json(self):
+        fpath = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON Files", "*.json")], initialfile="nexus_accounts_backup.json")
+        if not fpath:
             return
+        try:
+            with open(fpath, "w", encoding="utf-8") as f:
+                json.dump(self.accounts, f, indent=2, ensure_ascii=False)
+            # Copy to clipboard
+            self.clipboard_clear()
+            self.clipboard_append(json.dumps(self.accounts, indent=2, ensure_ascii=False))
+            messagebox.showinfo("Thành công", f"Đã lưu ra {fpath} và sao chép vào Clipboard!")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể xuất file JSON: {e}")
 
-        for idx, item in enumerate(self.history):
-            card = tk.Frame(self.hist_scroll_frame, bg="#13161D", bd=1, relief="solid", padx=10, pady=8)
-            card.pack(fill="x", padx=8, pady=4)
+    # ================= KHO LỊCH SỬ MÃ HÓA & MẬT KHẨU PIN =================
+    def on_unlock_history(self):
+        entered = self.ent_hist_pin.get().strip()
+        expected = self.config.get("history_pin_hash", "")
+        if hashlib.sha256(entered.encode("utf-8")).hexdigest() == expected:
+            self.is_history_unlocked = True
+            self.ent_hist_pin.delete(0, "end")
+            self.check_history_lock_view()
+            messagebox.showinfo("Mở Khóa", "Mở khóa kho lịch sử thành công!")
+        else:
+            messagebox.showerror("Lỗi", "Mã PIN hoặc mật khẩu không chính xác!")
 
-            # Thumbnail nhỏ bên trái
-            lbl_thumb = tk.Label(card, bg="#0A0C10", text="...", fg=self.c_muted, width=12, height=6)
-            lbl_thumb.pack(side="left", padx=(0, 12))
-            self.load_image_to_label(item["imageUrl"], lbl_thumb, max_w=90, max_h=90)
+    def on_history_security_dialog(self):
+        has_pin = bool(self.config.get("history_pin_hash"))
+        if has_pin:
+            if messagebox.askyesno("Bảo Mật", "Kho lịch sử đang được bảo vệ bằng mật khẩu.\nBạn có muốn gỡ bỏ mật khẩu?"):
+                self.config["history_pin_hash"] = ""
+                self.save_config()
+                self.is_history_unlocked = True
+                self.check_history_lock_view()
+                messagebox.showinfo("Thành công", "Đã gỡ mật khẩu bảo vệ lịch sử!")
+        else:
+            top = tk.Toplevel(self)
+            top.title("Thiết Lập Mật Khẩu PIN Kho Lịch Sử")
+            top.geometry("380x180")
+            top.configure(bg=self.c_bg)
 
-            # Thông tin chính giữa
-            info_frame = tk.Frame(card, bg="#13161D")
-            info_frame.pack(side="left", fill="both", expand=True)
+            tk.Label(top, text="Nhập mã PIN hoặc mật khẩu mới:", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 9)).pack(pady=(16, 6))
+            ent = tk.Entry(top, show="*", bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", justify="center", font=("Segoe UI", 11), width=18)
+            ent.pack(pady=(0, 14))
 
-            tag_style = "Thực Tế" if item.get("isReal") else "Anime"
-            prof_tag = item.get("profile", "flash").upper()
-            title = f"{prof_tag} | {tag_style} | {item.get('width')}x{item.get('height')} | Seed: {item.get('seed')}"
-            tk.Label(info_frame, text=title, bg="#13161D", fg=self.c_accent, font=("Segoe UI", 9, "bold")).pack(anchor="w")
+            def _save_pin():
+                p = ent.get().strip()
+                if p:
+                    self.config["history_pin_hash"] = hashlib.sha256(p.encode("utf-8")).hexdigest()
+                    self.save_config()
+                    self.is_history_unlocked = False
+                    self.check_history_lock_view()
+                    top.destroy()
+                    messagebox.showinfo("Thành công", "Đã kích hoạt mật khẩu bảo vệ kho lịch sử!")
 
-            og_txt = "Gốc: " + item.get("originalPrompt", "")
-            tk.Label(info_frame, text=og_txt[:100] + ("..." if len(og_txt) > 100 else ""), bg="#13161D", fg=self.c_text, font=("Segoe UI", 8)).pack(anchor="w", pady=(2, 0))
+            tk.Button(top, text="Lưu Mật Khẩu", bg="#E0E0E0", fg="#0A0A0A", relief="solid", bd=1, padx=12, pady=4, font=("Segoe UI", 9, "bold"), command=_save_pin).pack()
 
-            sv_txt = "Server: " + item.get("serverPrompt", "")
-            tk.Label(info_frame, text=sv_txt[:100] + ("..." if len(sv_txt) > 100 else ""), bg="#13161D", fg=self.c_success, font=("Segoe UI", 8)).pack(anchor="w")
+    def refresh_history_table(self):
+        if not hasattr(self, "hist_tree"):
+            return
+        for item in self.hist_tree.get_children():
+            self.hist_tree.delete(item)
+        for h in self.history[:100]:
+            t_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(h.get("timestamp", 0) / 1000))
+            self.hist_tree.insert("", "end", values=(t_str, h.get("profile", "").upper(), f"{h.get('width')}x{h.get('height')}", h.get("originalPrompt", "")))
 
-            # Cột nút thao tác bên phải
-            act_frame = tk.Frame(card, bg="#13161D")
-            act_frame.pack(side="right", padx=(8, 0))
+    def on_history_double_click(self, event):
+        sel = self.hist_tree.selection()
+        if not sel:
+            return
+        idx = self.hist_tree.index(sel[0])
+        if 0 <= idx < len(self.history):
+            h = self.history[idx]
+            url = h.get("imageUrl")
+            if url:
+                top = tk.Toplevel(self)
+                top.title("Chi Tiết Phiên Lịch Sử - PixAI Nexus")
+                top.geometry("850x750")
+                top.configure(bg=self.c_bg)
 
-            btn_zoom = tk.Button(act_frame, text="Phóng To", bg=self.c_card_border, fg=self.c_accent, relief="flat", padx=8, pady=2, font=("Segoe UI", 8), command=lambda u=item["imageUrl"], og=item["originalPrompt"], sv=item["serverPrompt"]: self.open_fullscreen_zoom(u, og, sv))
-            btn_zoom.pack(fill="x", pady=1)
+                lbl_im = tk.Label(top, bg=self.c_bg)
+                lbl_im.pack(fill="both", expand=True)
 
-            btn_copy = tk.Button(act_frame, text="Copy Server", bg=self.c_card_border, fg=self.c_success, relief="flat", padx=8, pady=2, font=("Segoe UI", 8), command=lambda sv=item["serverPrompt"]: self.copy_text(sv, "Prompt Server"))
-            btn_copy.pack(fill="x", pady=1)
+                def _load():
+                    try:
+                        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                        with urllib.request.urlopen(req, timeout=25) as resp:
+                            data = resp.read()
+                        im = Image.open(__import__("io").BytesIO(data))
+                        im.thumbnail((800, 600), Image.Resampling.LANCZOS)
+                        tk_im = ImageTk.PhotoImage(im)
+                        self.after(0, lambda: lbl_im.config(image=tk_im))
+                        lbl_im.image = tk_im
+                    except Exception:
+                        pass
+                threading.Thread(target=_load, daemon=True).start()
 
-    def copy_text(self, text, label):
-        self.clipboard_clear()
-        self.clipboard_append(text)
-        messagebox.showinfo("Đã Sao Chép", f"Đã sao chép {label}!")
-
-    def clear_all_history(self):
-        if messagebox.askyesno("Xác Nhận", "Bạn có chắc chắn muốn xóa toàn bộ kho lịch sử mã hóa?"):
-            self.history = []
+    def on_clear_history(self):
+        if messagebox.askyesno("Xác nhận", "Bạn có chắc chắn muốn xóa toàn bộ kho lịch sử mã hóa?"):
+            self.history.clear()
             save_encrypted_history(self.history)
-            self.refresh_history_list()
+            self.refresh_history_table()
+            self.log_message("Đã xóa sạch kho lịch sử.", "info")
 
-    # ================= TAB 4: BẢO MẬT & PROXY =================
-    def build_security_tab(self):
-        container = tk.Frame(self.tab_security, bg=self.c_bg, padx=16, pady=16)
-        container.pack(fill="both", expand=True)
-
-        card = tk.LabelFrame(container, text=" Thiết Lập Proxy Shield & Định Tuyến An Toàn ", bg=self.c_card, fg=self.c_accent, font=("Segoe UI", 10, "bold"), bd=1, relief="solid", padx=16, pady=16)
-        card.pack(fill="x", pady=(0, 12))
-
-        # Proxy Address
-        tk.Label(card, text="Địa chỉ Proxy Shield (Hỗ trợ HTTP / SOCKS5):", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w")
-        self.ent_proxy = tk.Entry(card, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Segoe UI", 10))
-        self.ent_proxy.pack(fill="x", pady=(4, 10))
-        self.ent_proxy.insert(0, self.config.get("proxy_address", "http://p.webshare.io:80"))
-
-        # Các Checkbox cấu hình
-        self.var_use_proxy = tk.BooleanVar(value=self.config.get("use_proxy", True))
-        chk_proxy = tk.Checkbutton(card, text="Kích hoạt Proxy Shield cho 100% kết nối ra ngoài", variable=self.var_use_proxy, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card, font=("Segoe UI", 9))
-        chk_proxy.pack(anchor="w", pady=2)
-
-        self.var_fallback = tk.BooleanVar(value=self.config.get("auto_fallback_direct", True))
-        chk_fallback = tk.Checkbutton(card, text="Tự động Fallback sang Direct an toàn nếu Proxy bị gián đoạn", variable=self.var_fallback, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card, font=("Segoe UI", 9))
-        chk_fallback.pack(anchor="w", pady=2)
-
-        self.var_anti_fp = tk.BooleanVar(value=self.config.get("anti_fingerprint", True))
-        chk_fp = tk.Checkbutton(card, text="Giả lập Vân Tay Thiết Bị Ảo (Anti Device Fingerprinting)", variable=self.var_anti_fp, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card, font=("Segoe UI", 9))
-        chk_fp.pack(anchor="w", pady=2)
-
-        # Hàng nút lưu & kiểm tra
-        row_btn = tk.Frame(card, bg=self.c_card)
-        row_btn.pack(fill="x", pady=(12, 0))
-
-        btn_save_sec = tk.Button(row_btn, text="Lưu Cấu Hình", bg=self.c_primary, fg="#FFFFFF", relief="flat", padx=14, pady=6, font=("Segoe UI", 9, "bold"), command=self.save_security_settings)
-        btn_save_sec.pack(side="left", padx=(0, 8))
-
-        btn_test_proxy = tk.Button(row_btn, text="Kiểm Tra Kết Nối Proxy (Ping & IP)", bg=self.c_card_border, fg=self.c_accent, relief="flat", padx=14, pady=6, font=("Segoe UI", 9, "bold"), command=self.test_proxy_connection)
-        btn_test_proxy.pack(side="left")
-
-        # Khung kết quả test proxy
-        self.lbl_proxy_test_res = tk.Label(card, text="Trạng thái: Chưa kiểm tra kết nối.", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 9))
-        self.lbl_proxy_test_res.pack(anchor="w", pady=(10, 0))
-
-    def save_security_settings(self):
-        self.config["proxy_address"] = self.ent_proxy.get().strip()
+    # ================= BẢO MẬT & PROXY =================
+    def on_save_security_config(self):
+        self.config["proxy_address"] = self.ent_proxy_addr.get().strip()
         self.config["use_proxy"] = self.var_use_proxy.get()
-        self.config["auto_fallback_direct"] = self.var_fallback.get()
-        self.config["anti_fingerprint"] = self.var_anti_fp.get()
+        self.config["auto_fallback_direct"] = self.var_auto_fallback.get()
+        self.config["auto_rotate_accounts"] = self.var_auto_rotate.get()
         self.save_config()
-        self.update_header()
-        self.log_message("Đã lưu thiết lập Bảo Mật & Proxy Shield.", "success")
-        messagebox.showinfo("Đã Lưu", "Cấu hình bảo mật đã được áp dụng!")
+        self.lbl_proxy_status.config(text="Proxy Shield: BẬT" if self.config["use_proxy"] else "Proxy Shield: TẮT")
+        self.log_message(f"Đã lưu cấu hình: Proxy={self.config['proxy_address']} (Shield={'BẬT' if self.config['use_proxy'] else 'TẮT'})", "info")
+        messagebox.showinfo("Thành công", "Đã lưu cấu hình Bảo Mật & Proxy Shield!")
 
-    def test_proxy_connection(self):
-        proxy = self.ent_proxy.get().strip()
-        self.lbl_proxy_test_res.config(text="Đang kiểm tra kết nối Proxy...", fg=self.c_accent)
+    def on_test_proxy(self):
+        proxy = self.ent_proxy_addr.get().strip()
+        self.lbl_proxy_test_res.config(text="Đang kiểm tra kết nối...", fg=self.c_text)
 
-        def task():
+        def _test():
             t0 = time.time()
             try:
-                raw = http_request("https://ipwho.is/", method="GET", proxy=proxy, timeout=12)
+                raw = http_request("https://ipwho.is/", method="GET", proxy=proxy, timeout=10)
                 ping = int((time.time() - t0) * 1000)
                 data = json.loads(raw.decode("utf-8"))
                 ip = data.get("ip", "Unknown")
                 country = data.get("country", "Unknown")
-                city = data.get("city", "Unknown")
-
-                def ok():
-                    self.lbl_proxy_test_res.config(
-                        text=f"KẾT NỐI THÀNH CÔNG! IP: {ip} | Vùng: {country} ({city}) | Ping: {ping}ms",
-                        fg=self.c_success
-                    )
-                    self.log_message(f"Kiểm tra Proxy thành công: {ip} ({country}) - {ping}ms", "success")
-
-                self.after(0, ok)
+                res_txt = f"KẾT NỐI THÀNH CÔNG: IP {ip} | Quốc gia: {country} | Ping: {ping}ms"
+                self.after(0, lambda: self.lbl_proxy_test_res.config(text=res_txt, fg=self.c_success))
+                self.after(0, lambda: self.log_message(f"Test Proxy thành công: IP {ip} ({country}) - Ping {ping}ms", "success"))
             except Exception as e:
-                def fail():
-                    self.lbl_proxy_test_res.config(
-                        text=f"KẾT NỐI THẤT BẠI: {e}",
-                        fg=self.c_danger
-                    )
-                    self.log_message(f"Kiểm tra Proxy thất bại: {e}", "danger")
+                err_txt = f"KẾT NỐI THẤT BẠI: {e}"
+                self.after(0, lambda: self.lbl_proxy_test_res.config(text=err_txt, fg=self.c_danger))
+                self.after(0, lambda: self.log_message(f"Test Proxy thất bại: {e}", "error"))
 
-                self.after(0, fail)
+        threading.Thread(target=_test, daemon=True).start()
 
-        threading.Thread(target=task, daemon=True).start()
-
-    # ================= TAB 5: NHẬT KÝ HỆ THỐNG (LOG CONSOLE) =================
-    def build_logs_tab(self):
-        container = tk.Frame(self.tab_logs, bg=self.c_bg, padx=12, pady=12)
-        container.pack(fill="both", expand=True)
-
-        top_bar = tk.Frame(container, bg=self.c_bg)
-        top_bar.pack(fill="x", pady=(0, 6))
-
-        tk.Label(top_bar, text="NHẬT KÝ HOẠT ĐỘNG HỆ THỐNG", bg=self.c_bg, fg=self.c_accent, font=("Segoe UI", 10, "bold")).pack(side="left")
-
-        btn_clear_log = tk.Button(top_bar, text="Xóa Nhật Ký", bg=self.c_card, fg=self.c_muted, relief="flat", padx=10, pady=3, font=("Segoe UI", 8), command=self.clear_logs)
-        btn_clear_log.pack(side="right")
-
-        self.txt_logs = tk.Text(container, bg="#0D0F14", fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Consolas", 9))
-        self.txt_logs.pack(fill="both", expand=True)
-
-        # Tags màu
-        self.txt_logs.tag_config("info", foreground=self.c_accent)
-        self.txt_logs.tag_config("success", foreground=self.c_success)
-        self.txt_logs.tag_config("danger", foreground=self.c_danger)
-
-    def log_message(self, msg, level="info"):
+    # ================= LOGGING =================
+    def log_message(self, message, level="info"):
         t_str = time.strftime("%H:%M:%S")
-        def update():
-            if hasattr(self, "txt_logs"):
-                self.txt_logs.insert("end", f"[{t_str}] {msg}\n", level)
-                self.txt_logs.see("end")
-        self.after(0, update)
-
-    def clear_logs(self):
-        if hasattr(self, "txt_logs"):
-            self.txt_logs.delete("1.0", "end")
-
-    def update_header(self):
-        total_cr = self.get_total_credits()
-        self.lbl_total_credits.config(text=f"Tổng Số Dư: {total_cr:,} Credits")
-        if self.active_account:
-            em = self.active_account.get("email", "")
-            cr = self.active_account.get("credits", 0)
-            self.lbl_active_acc.config(text=f"Tài khoản: {em} ({cr:,} CR)")
-        else:
-            self.lbl_active_acc.config(text="Tài khoản: Chưa có tài khoản")
-
-        p_on = self.config.get("use_proxy", True)
-        self.lbl_proxy_status.config(
-            text="Proxy: BẬT" if p_on else "Proxy: TẮT",
-            fg=self.c_accent if p_on else self.c_muted
-        )
+        line = f"{t_str} {message}\n"
+        self.txt_logs.insert("end", line)
+        self.txt_logs.see("end")
 
 
 if __name__ == "__main__":

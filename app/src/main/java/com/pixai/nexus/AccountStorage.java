@@ -14,6 +14,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,8 +32,11 @@ public class AccountStorage {
     private static final String KEY_SAVED_PROFILE = "saved_profile";
     private static final String KEY_SAVED_REAL = "saved_real";
     private static final String KEY_SAVED_BATCH = "saved_batch";
-    private static final String KEY_SAVED_RATIO_IDX = "saved_ratio_index";
-    private static final String KEY_SAVED_QUALITY = "saved_quality";
+    private static final String KEY_SAVED_RATIO_NAME = "saved_ratio_name";
+    private static final String KEY_SAVED_SIZE_TIER = "saved_size_tier";
+    private static final String KEY_SAVED_CUSTOM_W = "saved_custom_w";
+    private static final String KEY_SAVED_CUSTOM_H = "saved_custom_h";
+    private static final String KEY_HISTORY_PIN_HASH = "history_pin_hash";
 
     private static final String ACCOUNTS_FILE = "accounts_nexus.json";
     private static final String HISTORY_FILE = "nexus_history.enc";
@@ -53,6 +57,44 @@ public class AccountStorage {
             out[i] = (byte) (data[i] ^ CIPHER_KEY[i % CIPHER_KEY.length]);
         }
         return out;
+    }
+
+    private static String sha256(String input) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder();
+            for (byte b : digest) {
+                sb.append(String.format("%02x", b));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return input;
+        }
+    }
+
+    // --- HISTORY PASSWORD / PIN LOCK ---
+    public boolean isHistoryPasswordEnabled() {
+        return prefs.contains(KEY_HISTORY_PIN_HASH) && !prefs.getString(KEY_HISTORY_PIN_HASH, "").isEmpty();
+    }
+
+    public void setHistoryPassword(String pin) {
+        if (pin == null || pin.trim().isEmpty()) {
+            prefs.edit().remove(KEY_HISTORY_PIN_HASH).apply();
+        } else {
+            prefs.edit().putString(KEY_HISTORY_PIN_HASH, sha256(pin.trim())).apply();
+        }
+    }
+
+    public boolean checkHistoryPassword(String pin) {
+        if (!isHistoryPasswordEnabled()) return true;
+        if (pin == null) return false;
+        String hash = prefs.getString(KEY_HISTORY_PIN_HASH, "");
+        return hash.equals(sha256(pin.trim()));
+    }
+
+    public void removeHistoryPassword() {
+        prefs.edit().remove(KEY_HISTORY_PIN_HASH).apply();
     }
 
     // --- ACCOUNTS MANAGEMENT ---
@@ -184,6 +226,76 @@ public class AccountStorage {
         return null;
     }
 
+    // --- IMPORT / EXPORT DATA ACCOUNTS ---
+    public synchronized String exportAccountsToJsonString() {
+        List<AccountModel> list = getAccounts();
+        JSONArray arr = new JSONArray();
+        for (AccountModel a : list) {
+            arr.put(a.toJsonObject());
+        }
+        try {
+            return arr.toString(2);
+        } catch (Exception e) {
+            return arr.toString();
+        }
+    }
+
+    public synchronized int importAccountsFromJsonString(String jsonStr) {
+        try {
+            JSONArray arr = new JSONArray(jsonStr.trim());
+            List<AccountModel> imported = new ArrayList<>();
+            for (int i = 0; i < arr.length(); i++) {
+                imported.add(new AccountModel(arr.getJSONObject(i)));
+            }
+            addAccountsBatch(imported);
+            return imported.size();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    public synchronized int importAccountsFromTextLines(String text) {
+        int count = 0;
+        String[] lines = text.split("\n");
+        List<AccountModel> imported = new ArrayList<>();
+        for (String raw : lines) {
+            String line = raw.trim();
+            if (line.isEmpty()) continue;
+
+            String email = "";
+            String token = "";
+            String password = "";
+
+            if (line.startsWith("Bearer ")) {
+                token = line.substring(7).trim();
+            } else if (line.contains(":") && !line.startsWith("http")) {
+                String[] parts = line.split(":");
+                if (parts.length >= 3) {
+                    email = parts[0].trim();
+                    password = parts[1].trim();
+                    token = parts[2].trim();
+                } else if (parts.length == 2) {
+                    email = parts[0].trim();
+                    token = parts[1].trim();
+                }
+            } else {
+                token = line;
+            }
+
+            if (token.length() >= 20) {
+                if (email.isEmpty()) {
+                    email = "pixai_acc_" + (System.currentTimeMillis() % 1000000) + "_" + (int)(Math.random() * 1000) + "@nexus.com";
+                }
+                imported.add(new AccountModel(email, password, token, 0));
+                count++;
+            }
+        }
+        if (!imported.isEmpty()) {
+            addAccountsBatch(imported);
+        }
+        return count;
+    }
+
     // --- HISTORY MANAGEMENT ---
     public synchronized List<HistoryItem> getHistory() {
         List<HistoryItem> list = new ArrayList<>();
@@ -229,7 +341,6 @@ public class AccountStorage {
     public synchronized void clearHistory() {
         File file = new File(context.getFilesDir(), HISTORY_FILE);
         if (file.exists()) file.delete();
-        // Xóa luôn cache ảnh mã hóa
         File cacheDir = new File(context.getFilesDir(), "nexus_cache");
         if (cacheDir.exists() && cacheDir.isDirectory()) {
             File[] files = cacheDir.listFiles();
@@ -341,62 +452,43 @@ public class AccountStorage {
         prefs.edit().putInt(KEY_SAVED_BATCH, b).apply();
     }
 
-    public int getSavedRatioIndex() {
-        return prefs.getInt(KEY_SAVED_RATIO_IDX, 0);
+    public String getSavedRatioName() {
+        return prefs.getString(KEY_SAVED_RATIO_NAME, "9:16");
     }
 
-    public void setSavedRatioIndex(int idx) {
-        prefs.edit().putInt(KEY_SAVED_RATIO_IDX, idx).apply();
+    public void setSavedRatioName(String name) {
+        prefs.edit().putString(KEY_SAVED_RATIO_NAME, name).apply();
     }
 
-    public String getSavedQuality() {
-        return prefs.getString(KEY_SAVED_QUALITY, "standard");
+    public String getSavedSizeTier() {
+        return prefs.getString(KEY_SAVED_SIZE_TIER, "XL");
     }
 
-    public void setSavedQuality(String q) {
-        prefs.edit().putString(KEY_SAVED_QUALITY, q).apply();
+    public void setSavedSizeTier(String tier) {
+        prefs.edit().putString(KEY_SAVED_SIZE_TIER, tier).apply();
     }
 
-    public boolean isStrictKillSwitchEnabled() {
-        return false;
+    public int getSavedCustomWidth() {
+        return prefs.getInt(KEY_SAVED_CUSTOM_W, 1104);
     }
 
-    public boolean isProxyWebUiEnabled() {
-        return false;
+    public void setSavedCustomWidth(int w) {
+        prefs.edit().putInt(KEY_SAVED_CUSTOM_W, w).apply();
     }
 
-    public boolean isAutoRotateProxyEnabled() {
-        return false;
+    public int getSavedCustomHeight() {
+        return prefs.getInt(KEY_SAVED_CUSTOM_H, 1824);
     }
 
-    public boolean isDohEnabled() {
-        return true;
+    public void setSavedCustomHeight(int h) {
+        prefs.edit().putInt(KEY_SAVED_CUSTOM_H, h).apply();
     }
 
-    public boolean isAntiDpiEnabled() {
-        return false;
+    public synchronized void setSavedCustomDimensions(int w, int h) {
+        prefs.edit().putInt(KEY_SAVED_CUSTOM_W, w).putInt(KEY_SAVED_CUSTOM_H, h).apply();
     }
 
-    public boolean isBlockWebRtcEnabled() {
-        return true;
-    }
-
-    public boolean isSpoofFingerprintEnabled() {
-        return true;
-    }
-
-    public boolean isBlockTrackersEnabled() {
-        return true;
-    }
-
-    public int getFingerprintSeed() {
-        return 12345;
-    }
-
-    public List<String> getParsedProxyPool() {
-        List<String> list = new ArrayList<>();
-        String p = getProxyAddress();
-        if (!p.isEmpty()) list.add(p);
-        return list;
+    public synchronized void addAccount(String email, String token, long quota) {
+        addAccount(new AccountModel(email, token, quota));
     }
 }

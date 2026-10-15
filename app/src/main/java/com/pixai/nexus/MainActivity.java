@@ -1,5 +1,6 @@
 package com.pixai.nexus;
 
+import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -15,12 +16,13 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
 import android.text.Editable;
+import android.text.InputType;
 import android.text.TextWatcher;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
@@ -31,7 +33,6 @@ import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
-import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -41,12 +42,10 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -82,14 +81,28 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvLoraStatus;
 
     private Button btnProfileFlash, btnProfilePro, btnProfileUltra;
-    private Button btnQualityStandard, btnQualityHigh, btnQualityUltra;
 
+    // Size Preset Chips & Custom & Auto
+    private Button btnSizeXL, btnSizeL, btnSizeM, btnSizeCustom, btnSizeAuto;
+    private LinearLayout layoutCustomDimensions;
+    private EditText etCustomWidth, etCustomHeight;
+
+    // Aspect Ratio Chips
+    private Button btnRatio9_16, btnRatio16_9, btnRatio1_1, btnRatio3_4, btnRatio4_3;
+    private Button btnRatio2_3, btnRatio3_2, btnRatio3_5, btnRatio5_3, btnRatio7_9;
+    private Button btnRatio9_7, btnRatio1_3, btnRatio3_1;
+
+    // Visual Preview Box
     private FrameLayout flRatioPreviewContainer;
     private View vRatioPreviewBox;
-    private Spinner spAspectRatio;
+    private TextView tvRatioInfo, tvDimensionInfo;
+
     private Button btnBatch1, btnBatch4;
 
+    // Multi-Image Context Gallery
     private Button btnPickImage, btnClearImage;
+    private HorizontalScrollView hsvAttachedImages;
+    private LinearLayout layoutAttachedThumbnails;
     private TextView tvAttachedImageName;
 
     private EditText etPrompt, etNegativePrompt;
@@ -109,18 +122,22 @@ public class MainActivity extends AppCompatActivity {
 
     // Tab 2: Accounts Views
     private EditText etNewAccountToken;
-    private Button btnAddAccountDirect;
+    private Button btnAddAccountDirect, btnAutoRegAcc;
+    private Button btnImportText, btnImportJson, btnExportJson;
     private Button btnSyncAllCredits, btnBatchClaimDaily, btnBatchClaimFull;
     private Button btnUnblurNsfw, btnClearAllAccounts;
     private ListView lvAccounts;
     private AccountAdapter accountAdapter;
 
-    // Tab 3: History Views
+    // Tab 3: History Views & PIN Security
+    private Button btnHistorySecurity, btnClearHistory;
+    private LinearLayout layoutHistoryLocked, layoutHistoryContent;
+    private EditText etHistoryUnlockPin;
+    private Button btnUnlockHistory, btnLoadMoreHistory;
     private ListView lvHistory;
-    private Button btnClearHistory;
-    private Button btnLoadMoreHistory;
     private HistoryAdapter historyAdapter;
     private int historyPageLimit = 20;
+    private boolean isHistoryUnlocked = false;
 
     // Tab 4: Security & Proxy Views
     private EditText etProxyAddress;
@@ -136,32 +153,22 @@ public class MainActivity extends AppCompatActivity {
     // State Variables
     private boolean isReal = false;
     private String currentProfile = "flash"; // flash, pro, ultra
-    private String currentQuality = "standard"; // standard, high, ultra
+    private String currentSizeTier = "xl"; // xl, l, m, custom, auto
+    private String currentRatio = "9:16";
     private int batchCount = 1;
-    private String attachedMediaId = null;
     private int selectedWidth = 1104;
     private int selectedHeight = 1824;
+
+    // Multi-image state
+    private final List<Uri> attachedImageUris = new ArrayList<>();
+    private final List<String> attachedMediaIds = new ArrayList<>();
+    private Bitmap firstAttachedBitmap = null;
 
     private final List<String> currentResultImages = new ArrayList<>();
     private int currentCarouselIdx = 0;
     private String lastOriginalPrompt = "";
     private String lastServerPrompt = "";
     private boolean isGenerating = false;
-
-    private final String[] RATIO_LABELS = {
-            "9:16 Dọc (1104 x 1824)",
-            "1:1 Vuông (1024 x 1024)",
-            "16:9 Ngang (1824 x 1104)",
-            "3:4 Chân Dung (896 x 1152)",
-            "Compact Nhỏ Gọn (608 x 1024)"
-    };
-    private final int[][] RATIO_DIMS = {
-            {1104, 1824},
-            {1024, 1024},
-            {1824, 1104},
-            {896, 1152},
-            {608, 1024}
-    };
 
     private ActivityResultLauncher<String> imagePickerLauncher;
 
@@ -175,10 +182,10 @@ public class MainActivity extends AppCompatActivity {
         initViews();
         restoreSavedState();
         setupNavigation();
-        setupRatioSpinner();
         setupStyleButtons();
         setupProfileButtons();
-        setupQualityButtons();
+        setupSizeButtons();
+        setupRatioButtons();
         setupBatchButtons();
         setupImagePicker();
         setupGenerateAction();
@@ -189,6 +196,7 @@ public class MainActivity extends AppCompatActivity {
         setupLogActions();
 
         refreshHeader();
+        updateDimensionsAndPreview();
         updateCostBadge();
         logMessage("Khởi động PixAI Nexus Studio phiên bản Monochrome Dark thành công.");
     }
@@ -217,18 +225,41 @@ public class MainActivity extends AppCompatActivity {
         btnProfilePro = findViewById(R.id.btnProfilePro);
         btnProfileUltra = findViewById(R.id.btnProfileUltra);
 
-        btnQualityStandard = findViewById(R.id.btnQualityStandard);
-        btnQualityHigh = findViewById(R.id.btnQualityHigh);
-        btnQualityUltra = findViewById(R.id.btnQualityUltra);
+        btnSizeXL = findViewById(R.id.btnSizeXL);
+        btnSizeL = findViewById(R.id.btnSizeL);
+        btnSizeM = findViewById(R.id.btnSizeM);
+        btnSizeCustom = findViewById(R.id.btnSizeCustom);
+        btnSizeAuto = findViewById(R.id.btnSizeAuto);
+        layoutCustomDimensions = findViewById(R.id.layoutCustomDimensions);
+        etCustomWidth = findViewById(R.id.etCustomWidth);
+        etCustomHeight = findViewById(R.id.etCustomHeight);
+
+        btnRatio9_16 = findViewById(R.id.btnRatio9_16);
+        btnRatio16_9 = findViewById(R.id.btnRatio16_9);
+        btnRatio1_1 = findViewById(R.id.btnRatio1_1);
+        btnRatio3_4 = findViewById(R.id.btnRatio3_4);
+        btnRatio4_3 = findViewById(R.id.btnRatio4_3);
+        btnRatio2_3 = findViewById(R.id.btnRatio2_3);
+        btnRatio3_2 = findViewById(R.id.btnRatio3_2);
+        btnRatio3_5 = findViewById(R.id.btnRatio3_5);
+        btnRatio5_3 = findViewById(R.id.btnRatio5_3);
+        btnRatio7_9 = findViewById(R.id.btnRatio7_9);
+        btnRatio9_7 = findViewById(R.id.btnRatio9_7);
+        btnRatio1_3 = findViewById(R.id.btnRatio1_3);
+        btnRatio3_1 = findViewById(R.id.btnRatio3_1);
 
         flRatioPreviewContainer = findViewById(R.id.flRatioPreviewContainer);
         vRatioPreviewBox = findViewById(R.id.vRatioPreviewBox);
-        spAspectRatio = findViewById(R.id.spAspectRatio);
+        tvRatioInfo = findViewById(R.id.tvRatioInfo);
+        tvDimensionInfo = findViewById(R.id.tvDimensionInfo);
+
         btnBatch1 = findViewById(R.id.btnBatch1);
         btnBatch4 = findViewById(R.id.btnBatch4);
 
         btnPickImage = findViewById(R.id.btnPickImage);
         btnClearImage = findViewById(R.id.btnClearImage);
+        hsvAttachedImages = findViewById(R.id.hsvAttachedImages);
+        layoutAttachedThumbnails = findViewById(R.id.layoutAttachedThumbnails);
         tvAttachedImageName = findViewById(R.id.tvAttachedImageName);
 
         etPrompt = findViewById(R.id.etPrompt);
@@ -254,6 +285,10 @@ public class MainActivity extends AppCompatActivity {
 
         etNewAccountToken = findViewById(R.id.etNewAccountToken);
         btnAddAccountDirect = findViewById(R.id.btnAddAccountDirect);
+        btnAutoRegAcc = findViewById(R.id.btnAutoRegAcc);
+        btnImportText = findViewById(R.id.btnImportText);
+        btnImportJson = findViewById(R.id.btnImportJson);
+        btnExportJson = findViewById(R.id.btnExportJson);
         btnSyncAllCredits = findViewById(R.id.btnSyncAllCredits);
         btnBatchClaimDaily = findViewById(R.id.btnBatchClaimDaily);
         btnBatchClaimFull = findViewById(R.id.btnBatchClaimFull);
@@ -261,9 +296,14 @@ public class MainActivity extends AppCompatActivity {
         btnClearAllAccounts = findViewById(R.id.btnClearAllAccounts);
         lvAccounts = findViewById(R.id.lvAccounts);
 
-        lvHistory = findViewById(R.id.lvHistory);
+        btnHistorySecurity = findViewById(R.id.btnHistorySecurity);
         btnClearHistory = findViewById(R.id.btnClearHistory);
+        layoutHistoryLocked = findViewById(R.id.layoutHistoryLocked);
+        layoutHistoryContent = findViewById(R.id.layoutHistoryContent);
+        etHistoryUnlockPin = findViewById(R.id.etHistoryUnlockPin);
+        btnUnlockHistory = findViewById(R.id.btnUnlockHistory);
         btnLoadMoreHistory = findViewById(R.id.btnLoadMoreHistory);
+        lvHistory = findViewById(R.id.lvHistory);
 
         etProxyAddress = findViewById(R.id.etProxyAddress);
         cbUseProxy = findViewById(R.id.cbUseProxy);
@@ -279,7 +319,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void restoreSavedState() {
-        // Khôi phục Prompt & Negative
         etPrompt.setText(storage.getSavedPrompt());
         etNegativePrompt.setText(storage.getSavedNegativePrompt());
 
@@ -299,23 +338,35 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Khôi phục Style
         isReal = storage.isSavedReal();
         updateStyleButtonsDisplay();
 
-        // Khôi phục Profile
         currentProfile = storage.getSavedProfile();
         updateProfileButtonsDisplay();
 
-        // Khôi phục Quality
-        currentQuality = storage.getSavedQuality();
-        updateQualityButtonsDisplay();
+        currentSizeTier = storage.getSavedSizeTier();
+        updateSizeButtonsDisplay();
 
-        // Khôi phục Batch
+        int savedCustomW = storage.getSavedCustomWidth();
+        int savedCustomH = storage.getSavedCustomHeight();
+        etCustomWidth.setText(String.valueOf(savedCustomW));
+        etCustomHeight.setText(String.valueOf(savedCustomH));
+
+        TextWatcher customDimWatcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                if ("custom".equals(currentSizeTier)) {
+                    updateDimensionsAndPreview();
+                }
+            }
+        };
+        etCustomWidth.addTextChangedListener(customDimWatcher);
+        etCustomHeight.addTextChangedListener(customDimWatcher);
+
         batchCount = storage.getSavedBatch();
         updateBatchButtonsDisplay();
 
-        // Khôi phục Proxy & Security
         etProxyAddress.setText(storage.getProxyAddress());
         cbUseProxy.setChecked(storage.isUseProxy());
         cbFallbackDirect.setChecked(storage.isFallbackDirect());
@@ -346,7 +397,7 @@ public class MainActivity extends AppCompatActivity {
             btnNavLogs.setTextColor(v == btnNavLogs ? 0xFFFFFFFF : 0xFF9E9E9E);
 
             if (v == btnNavAccounts) refreshAccountsList();
-            if (v == btnNavHistory) refreshHistoryList();
+            if (v == btnNavHistory) checkHistoryLockAndRefresh();
         };
 
         btnNavStudio.setOnClickListener(navClick);
@@ -369,56 +420,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // --- TAB 1: STUDIO CONTROLS ---
-    private void setupRatioSpinner() {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, RATIO_LABELS);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spAspectRatio.setAdapter(adapter);
-
-        int savedIdx = storage.getSavedRatioIndex();
-        if (savedIdx >= 0 && savedIdx < RATIO_LABELS.length) {
-            spAspectRatio.setSelection(savedIdx);
-            selectedWidth = RATIO_DIMS[savedIdx][0];
-            selectedHeight = RATIO_DIMS[savedIdx][1];
-            updateVisualRatioBox(savedIdx);
-        }
-
-        spAspectRatio.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                selectedWidth = RATIO_DIMS[position][0];
-                selectedHeight = RATIO_DIMS[position][1];
-                storage.setSavedRatioIndex(position);
-                updateVisualRatioBox(position);
-            }
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
-        });
-    }
-
-    private void updateVisualRatioBox(int index) {
-        float density = getResources().getDisplayMetrics().density;
-        int wDp = 20, hDp = 36;
-        switch (index) {
-            case 0: // 9:16
-                wDp = 20; hDp = 36;
-                break;
-            case 1: // 1:1
-                wDp = 30; hDp = 30;
-                break;
-            case 2: // 16:9
-                wDp = 36; hDp = 20;
-                break;
-            case 3: // 3:4
-                wDp = 24; hDp = 32;
-                break;
-            case 4: // Compact
-                wDp = 21; hDp = 36;
-                break;
-        }
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (wDp * density), (int) (hDp * density));
-        lp.gravity = android.view.Gravity.CENTER;
-        vRatioPreviewBox.setLayoutParams(lp);
-    }
 
     private void setupStyleButtons() {
         btnStyleAnime.setOnClickListener(v -> {
@@ -440,8 +441,8 @@ public class MainActivity extends AppCompatActivity {
         btnStyleReal.setBackgroundResource(isReal ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
         btnStyleReal.setTextColor(isReal ? 0xFFFFFFFF : 0xFF9E9E9E);
 
-        if (attachedMediaId != null) {
-            tvLoraStatus.setText("Đang đính kèm ảnh mẫu: Tự động bỏ LoRA để tương thích");
+        if (!attachedMediaIds.isEmpty()) {
+            tvLoraStatus.setText("Đang đính kèm " + attachedMediaIds.size() + " ảnh mẫu: Tự động bỏ LoRA để tương thích Img2Img");
             tvLoraStatus.setTextColor(0xFFE0E0E0);
         } else if (isReal) {
             tvLoraStatus.setText("LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)");
@@ -496,35 +497,226 @@ public class MainActivity extends AppCompatActivity {
         btnProfileUltra.setTextColor("ultra".equals(currentProfile) ? 0xFFFFFFFF : 0xFF9E9E9E);
     }
 
-    private void setupQualityButtons() {
-        btnQualityStandard.setOnClickListener(v -> {
-            currentQuality = "standard";
-            storage.setSavedQuality("standard");
-            updateQualityButtonsDisplay();
-        });
-
-        btnQualityHigh.setOnClickListener(v -> {
-            currentQuality = "high";
-            storage.setSavedQuality("high");
-            updateQualityButtonsDisplay();
-        });
-
-        btnQualityUltra.setOnClickListener(v -> {
-            currentQuality = "ultra";
-            storage.setSavedQuality("ultra");
-            updateQualityButtonsDisplay();
-        });
+    private void setupSizeButtons() {
+        btnSizeXL.setOnClickListener(v -> selectSizeTier("xl"));
+        btnSizeL.setOnClickListener(v -> selectSizeTier("l"));
+        btnSizeM.setOnClickListener(v -> selectSizeTier("m"));
+        btnSizeCustom.setOnClickListener(v -> selectSizeTier("custom"));
+        btnSizeAuto.setOnClickListener(v -> selectSizeTier("auto"));
     }
 
-    private void updateQualityButtonsDisplay() {
-        btnQualityStandard.setBackgroundResource("standard".equals(currentQuality) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnQualityStandard.setTextColor("standard".equals(currentQuality) ? 0xFFFFFFFF : 0xFF9E9E9E);
+    private void selectSizeTier(String tier) {
+        currentSizeTier = tier;
+        storage.setSavedSizeTier(tier);
+        updateSizeButtonsDisplay();
+        updateDimensionsAndPreview();
+    }
 
-        btnQualityHigh.setBackgroundResource("high".equals(currentQuality) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnQualityHigh.setTextColor("high".equals(currentQuality) ? 0xFFFFFFFF : 0xFF9E9E9E);
+    private void updateSizeButtonsDisplay() {
+        btnSizeXL.setBackgroundResource("xl".equals(currentSizeTier) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnSizeXL.setTextColor("xl".equals(currentSizeTier) ? 0xFFFFFFFF : 0xFF9E9E9E);
 
-        btnQualityUltra.setBackgroundResource("ultra".equals(currentQuality) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnQualityUltra.setTextColor("ultra".equals(currentQuality) ? 0xFFFFFFFF : 0xFF9E9E9E);
+        btnSizeL.setBackgroundResource("l".equals(currentSizeTier) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnSizeL.setTextColor("l".equals(currentSizeTier) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnSizeM.setBackgroundResource("m".equals(currentSizeTier) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnSizeM.setTextColor("m".equals(currentSizeTier) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnSizeCustom.setBackgroundResource("custom".equals(currentSizeTier) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnSizeCustom.setTextColor("custom".equals(currentSizeTier) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnSizeAuto.setBackgroundResource("auto".equals(currentSizeTier) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnSizeAuto.setTextColor("auto".equals(currentSizeTier) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        layoutCustomDimensions.setVisibility("custom".equals(currentSizeTier) ? View.VISIBLE : View.GONE);
+        btnSizeAuto.setVisibility(!attachedMediaIds.isEmpty() ? View.VISIBLE : View.GONE);
+    }
+
+    private void setupRatioButtons() {
+        View.OnClickListener ratioListener = v -> {
+            if (v == btnRatio9_16) currentRatio = "9:16";
+            else if (v == btnRatio16_9) currentRatio = "16:9";
+            else if (v == btnRatio1_1) currentRatio = "1:1";
+            else if (v == btnRatio3_4) currentRatio = "3:4";
+            else if (v == btnRatio4_3) currentRatio = "4:3";
+            else if (v == btnRatio2_3) currentRatio = "2:3";
+            else if (v == btnRatio3_2) currentRatio = "3:2";
+            else if (v == btnRatio3_5) currentRatio = "3:5";
+            else if (v == btnRatio5_3) currentRatio = "5:3";
+            else if (v == btnRatio7_9) currentRatio = "7:9";
+            else if (v == btnRatio9_7) currentRatio = "9:7";
+            else if (v == btnRatio1_3) currentRatio = "1:3";
+            else if (v == btnRatio3_1) currentRatio = "3:1";
+
+            updateRatioButtonsDisplay();
+            updateDimensionsAndPreview();
+        };
+
+        btnRatio9_16.setOnClickListener(ratioListener);
+        btnRatio16_9.setOnClickListener(ratioListener);
+        btnRatio1_1.setOnClickListener(ratioListener);
+        btnRatio3_4.setOnClickListener(ratioListener);
+        btnRatio4_3.setOnClickListener(ratioListener);
+        btnRatio2_3.setOnClickListener(ratioListener);
+        btnRatio3_2.setOnClickListener(ratioListener);
+        btnRatio3_5.setOnClickListener(ratioListener);
+        btnRatio5_3.setOnClickListener(ratioListener);
+        btnRatio7_9.setOnClickListener(ratioListener);
+        btnRatio9_7.setOnClickListener(ratioListener);
+        btnRatio1_3.setOnClickListener(ratioListener);
+        btnRatio3_1.setOnClickListener(ratioListener);
+
+        updateRatioButtonsDisplay();
+    }
+
+    private void updateRatioButtonsDisplay() {
+        setChipState(btnRatio9_16, "9:16".equals(currentRatio));
+        setChipState(btnRatio16_9, "16:9".equals(currentRatio));
+        setChipState(btnRatio1_1, "1:1".equals(currentRatio));
+        setChipState(btnRatio3_4, "3:4".equals(currentRatio));
+        setChipState(btnRatio4_3, "4:3".equals(currentRatio));
+        setChipState(btnRatio2_3, "2:3".equals(currentRatio));
+        setChipState(btnRatio3_2, "3:2".equals(currentRatio));
+        setChipState(btnRatio3_5, "3:5".equals(currentRatio));
+        setChipState(btnRatio5_3, "5:3".equals(currentRatio));
+        setChipState(btnRatio7_9, "7:9".equals(currentRatio));
+        setChipState(btnRatio9_7, "9:7".equals(currentRatio));
+        setChipState(btnRatio1_3, "1:3".equals(currentRatio));
+        setChipState(btnRatio3_1, "3:1".equals(currentRatio));
+    }
+
+    private void setChipState(Button btn, boolean active) {
+        if (btn == null) return;
+        btn.setBackgroundResource(active ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btn.setTextColor(active ? 0xFFFFFFFF : 0xFF9E9E9E);
+    }
+
+    private void updateDimensionsAndPreview() {
+        if ("custom".equals(currentSizeTier)) {
+            int cw = 1024, ch = 1024;
+            try {
+                cw = Integer.parseInt(etCustomWidth.getText().toString().trim());
+                ch = Integer.parseInt(etCustomHeight.getText().toString().trim());
+            } catch (Exception ignored) {}
+            cw = Math.max(256, (cw / 16) * 16);
+            ch = Math.max(256, (ch / 16) * 16);
+            selectedWidth = cw;
+            selectedHeight = ch;
+            storage.setSavedCustomDimensions(cw, ch);
+            tvRatioInfo.setText("Tùy Chỉnh Size (" + cw + " x " + ch + ")");
+            tvDimensionInfo.setText("Kích thước tự do: " + cw + " x " + ch + " px");
+        } else if ("auto".equals(currentSizeTier) && firstAttachedBitmap != null) {
+            int bw = firstAttachedBitmap.getWidth();
+            int bh = firstAttachedBitmap.getHeight();
+            // Scale to reasonable bounds while preserving aspect ratio
+            double scale = Math.sqrt((1024.0 * 1024.0) / (double)(bw * bh));
+            int aw = (int) (bw * scale);
+            int ah = (int) (bh * scale);
+            aw = Math.max(384, (aw / 16) * 16);
+            ah = Math.max(384, (ah / 16) * 16);
+            selectedWidth = aw;
+            selectedHeight = ah;
+            tvRatioInfo.setText("Tự Động Theo Ảnh Mẫu (" + bw + " x " + bh + ")");
+            tvDimensionInfo.setText("Kích thước tính toán: " + aw + " x " + ah + " px");
+        } else {
+            // Standard presets: xl, l, m
+            int[] dims = calculatePresetDimensions(currentRatio, currentSizeTier);
+            selectedWidth = dims[0];
+            selectedHeight = dims[1];
+            tvRatioInfo.setText("Tỷ lệ: " + currentRatio);
+            tvDimensionInfo.setText("Kích thước: " + selectedWidth + " x " + selectedHeight + " px (" + currentSizeTier.toUpperCase() + ")");
+        }
+
+        // CẬP NHẬT MINH HỌA HÌNH HỌC TRỰC QUAN CHUẨN XÁC
+        renderGeometricPreviewBox(selectedWidth, selectedHeight);
+    }
+
+    private int[] calculatePresetDimensions(String ratio, String tier) {
+        int w = 1104, h = 1824;
+        boolean isXL = "xl".equalsIgnoreCase(tier);
+        boolean isL = "l".equalsIgnoreCase(tier);
+
+        switch (ratio) {
+            case "9:16":
+                w = isXL ? 1104 : (isL ? 944 : 768);
+                h = isXL ? 1824 : (isL ? 1584 : 1280);
+                break;
+            case "16:9":
+                w = isXL ? 1824 : (isL ? 1584 : 1280);
+                h = isXL ? 1104 : (isL ? 944 : 768);
+                break;
+            case "1:1":
+                w = isXL ? 1440 : (isL ? 1216 : 1024);
+                h = isXL ? 1440 : (isL ? 1216 : 1024);
+                break;
+            case "3:4":
+                w = isXL ? 1248 : (isL ? 1056 : 896);
+                h = isXL ? 1664 : (isL ? 1408 : 1152);
+                break;
+            case "4:3":
+                w = isXL ? 1664 : (isL ? 1408 : 1152);
+                h = isXL ? 1248 : (isL ? 1056 : 896);
+                break;
+            case "2:3":
+                w = isXL ? 1184 : (isL ? 1008 : 832);
+                h = isXL ? 1776 : (isL ? 1520 : 1248);
+                break;
+            case "3:2":
+                w = isXL ? 1776 : (isL ? 1520 : 1248);
+                h = isXL ? 1184 : (isL ? 1008 : 832);
+                break;
+            case "3:5":
+                w = isXL ? 1104 : (isL ? 936 : 768);
+                h = isXL ? 1840 : (isL ? 1568 : 1280);
+                break;
+            case "5:3":
+                w = isXL ? 1840 : (isL ? 1568 : 1280);
+                h = isXL ? 1104 : (isL ? 936 : 768);
+                break;
+            case "7:9":
+                w = isXL ? 1280 : (isL ? 1088 : 928);
+                h = isXL ? 1664 : (isL ? 1408 : 1184);
+                break;
+            case "9:7":
+                w = isXL ? 1664 : (isL ? 1408 : 1184);
+                h = isXL ? 1280 : (isL ? 1088 : 928);
+                break;
+            case "1:3":
+                w = isXL ? 720 : (isL ? 608 : 512);
+                h = isXL ? 2160 : (isL ? 1824 : 1536);
+                break;
+            case "3:1":
+                w = isXL ? 2160 : (isL ? 1824 : 1536);
+                h = isXL ? 720 : (isL ? 608 : 512);
+                break;
+            default:
+                w = 1104;
+                h = 1824;
+                break;
+        }
+        return new int[]{w, h};
+    }
+
+    private void renderGeometricPreviewBox(int width, int height) {
+        if (vRatioPreviewBox == null) return;
+        float density = getResources().getDisplayMetrics().density;
+        float maxDp = 42.0f;
+        float boxWDp, boxHDp;
+
+        if (width >= height) {
+            boxWDp = maxDp;
+            boxHDp = Math.max(10.0f, maxDp * ((float) height / (float) width));
+        } else {
+            boxHDp = maxDp;
+            boxWDp = Math.max(10.0f, maxDp * ((float) width / (float) height));
+        }
+
+        int pxW = (int) (boxWDp * density);
+        int pxH = (int) (boxHDp * density);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(pxW, pxH);
+        lp.gravity = Gravity.CENTER;
+        vRatioPreviewBox.setLayoutParams(lp);
     }
 
     private void setupBatchButtons() {
@@ -537,7 +729,7 @@ public class MainActivity extends AppCompatActivity {
 
         btnBatch4.setOnClickListener(v -> {
             if (!"flash".equalsIgnoreCase(currentProfile)) {
-                Toast.makeText(this, "Số lượng 4 ảnh chỉ hỗ trợ ở chế độ Flash (Siêu Tốc)!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Số lượng 4 ảnh chỉ hỗ trợ ở chế độ Flash!", Toast.LENGTH_SHORT).show();
                 return;
             }
             batchCount = 4;
@@ -557,7 +749,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateCostBadge() {
         long cost = calculateRequiredCost();
-        tvCostBadge.setText("Chi phí: " + String.format(Locale.US, "%,d", cost) + " Credits (" + currentProfile.toUpperCase() + " - " + batchCount + " ảnh)");
+        AccountModel eligible = storage.findEligibleAccount(cost);
+
+        if (eligible != null) {
+            tvCostBadge.setText("Chi phí: " + String.format(Locale.US, "%,d", cost) + " CR | Khả dụng: " + eligible.getEmail() + " (" + String.format(Locale.US, "%,d", eligible.getCredits()) + " CR) | Đủ điều kiện");
+            tvCostBadge.setTextColor(0xFF81C784);
+            btnGenerate.setEnabled(true);
+        } else {
+            tvCostBadge.setText("Chi phí: " + String.format(Locale.US, "%,d", cost) + " CR | Cảnh báo: Không có tài khoản nào đủ " + cost + " CR!");
+            tvCostBadge.setTextColor(0xFFE57373);
+        }
     }
 
     private long calculateRequiredCost() {
@@ -566,31 +767,37 @@ public class MainActivity extends AppCompatActivity {
         return (batchCount == 4) ? 400 : 100;
     }
 
+    // --- MULTI-IMAGE PICKER & GALLERY ---
     private void setupImagePicker() {
         imagePickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.GetContent(),
                 uri -> {
                     if (uri != null) {
-                        uploadContextImage(uri);
+                        uploadReferenceImage(uri);
                     }
                 }
         );
 
         btnPickImage.setOnClickListener(v -> imagePickerLauncher.launch("image/*"));
 
-        // GỠ ẢNH VÀ TỰ ĐỘNG PHỤC HỒI LORA THỰC TẾ
         btnClearImage.setOnClickListener(v -> {
-            attachedMediaId = null;
+            attachedImageUris.clear();
+            attachedMediaIds.clear();
+            firstAttachedBitmap = null;
+            layoutAttachedThumbnails.removeAllViews();
+            hsvAttachedImages.setVisibility(View.GONE);
             btnClearImage.setVisibility(View.GONE);
-            tvAttachedImageName.setText("Chưa đính kèm ảnh (Tạo từ văn bản)");
+            tvAttachedImageName.setText("Chưa đính kèm ảnh (Tạo từ văn bản, bật LoRA Thực Tế)");
             tvAttachedImageName.setTextColor(0xFF9E9E9E);
             updateStyleButtonsDisplay();
-            logMessage("Đã gỡ ảnh mẫu: Tự động phục hồi LoRA Thực Tế.");
+            updateSizeButtonsDisplay();
+            updateDimensionsAndPreview();
+            logMessage("Đã gỡ toàn bộ ảnh mẫu: Tự động khôi phục LoRA Thực Tế.");
         });
     }
 
-    private void uploadContextImage(Uri uri) {
-        tvAttachedImageName.setText("Đang tải ảnh mẫu lên PixAI S3 Cloud...");
+    private void uploadReferenceImage(Uri uri) {
+        tvAttachedImageName.setText("Đang tải ảnh mẫu lên PixAI Cloud...");
         tvAttachedImageName.setTextColor(0xFFE0E0E0);
 
         executor.execute(() -> {
@@ -599,11 +806,11 @@ public class MainActivity extends AppCompatActivity {
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();
                 byte[] buffer = new byte[8192];
                 int read;
-                while ((read = is.read(buffer)) != -1) {
-                    bos.write(buffer, 0, read);
-                }
+                while ((read = is.read(buffer)) != -1) bos.write(buffer, 0, read);
                 is.close();
                 byte[] imageBytes = bos.toByteArray();
+
+                Bitmap bm = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
 
                 AccountModel active = storage.getActiveAccount();
                 String token = active != null ? active.getToken() : "";
@@ -612,13 +819,22 @@ public class MainActivity extends AppCompatActivity {
                 String mediaId = PixAiApiHelper.uploadImageToPixAi(imageBytes, token, proxy);
 
                 mainHandler.post(() -> {
-                    attachedMediaId = mediaId;
-                    tvAttachedImageName.setText("Đã đính kèm ảnh (ID: " + mediaId + ")");
-                    tvAttachedImageName.setTextColor(0xFF81C784);
+                    attachedImageUris.add(uri);
+                    attachedMediaIds.add(mediaId);
+                    if (firstAttachedBitmap == null) firstAttachedBitmap = bm;
+
+                    addAttachedThumbnailCard(uri, mediaId, bm);
+
+                    hsvAttachedImages.setVisibility(View.VISIBLE);
                     btnClearImage.setVisibility(View.VISIBLE);
+                    tvAttachedImageName.setText("Đã đính kèm " + attachedMediaIds.size() + " ảnh mẫu");
+                    tvAttachedImageName.setTextColor(0xFF81C784);
+
                     updateStyleButtonsDisplay();
+                    updateSizeButtonsDisplay();
+                    updateDimensionsAndPreview();
                     logMessage("Tải ảnh mẫu lên PixAI thành công. Media ID: " + mediaId);
-                    Toast.makeText(this, "Đính kèm ảnh mẫu thành công!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Đã thêm ảnh tham chiếu!", Toast.LENGTH_SHORT).show();
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
@@ -630,6 +846,60 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void addAttachedThumbnailCard(Uri uri, String mediaId, Bitmap bm) {
+        float density = getResources().getDisplayMetrics().density;
+
+        FrameLayout card = new FrameLayout(this);
+        LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams((int) (64 * density), (int) (64 * density));
+        cardLp.setMarginEnd((int) (8 * density));
+        card.setLayoutParams(cardLp);
+        card.setBackgroundResource(R.drawable.bg_cyber_card);
+
+        ImageView iv = new ImageView(this);
+        iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        if (bm != null) iv.setImageBitmap(bm);
+        FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        card.addView(iv, ivLp);
+
+        // Nút xóa 'X'
+        Button btnDel = new Button(this);
+        btnDel.setText("X");
+        btnDel.setTextColor(0xFFFFFFFF);
+        btnDel.setTextSize(10);
+        btnDel.setBackgroundColor(0xCC000000);
+        FrameLayout.LayoutParams delLp = new FrameLayout.LayoutParams((int) (22 * density), (int) (22 * density));
+        delLp.gravity = Gravity.TOP | Gravity.END;
+        btnDel.setLayoutParams(delLp);
+        btnDel.setPadding(0, 0, 0, 0);
+
+        btnDel.setOnClickListener(v -> {
+            attachedMediaIds.remove(mediaId);
+            attachedImageUris.remove(uri);
+            layoutAttachedThumbnails.removeView(card);
+
+            if (attachedMediaIds.isEmpty()) {
+                firstAttachedBitmap = null;
+                hsvAttachedImages.setVisibility(View.GONE);
+                btnClearImage.setVisibility(View.GONE);
+                tvAttachedImageName.setText("Chưa đính kèm ảnh (Tạo từ văn bản, bật LoRA Thực Tế)");
+                tvAttachedImageName.setTextColor(0xFF9E9E9E);
+                if ("auto".equals(currentSizeTier)) {
+                    selectSizeTier("xl");
+                }
+            } else {
+                tvAttachedImageName.setText("Đã đính kèm " + attachedMediaIds.size() + " ảnh mẫu");
+            }
+            updateStyleButtonsDisplay();
+            updateSizeButtonsDisplay();
+            updateDimensionsAndPreview();
+            logMessage("Đã xóa 1 ảnh tham chiếu. Còn lại: " + attachedMediaIds.size() + " ảnh.");
+        });
+
+        card.addView(btnDel);
+        layoutAttachedThumbnails.addView(card);
+    }
+
+    // --- GENERATE ACTION ---
     private void setupGenerateAction() {
         btnGenerate.setOnClickListener(v -> startGenerationTask());
 
@@ -706,10 +976,9 @@ public class MainActivity extends AppCompatActivity {
 
         long requiredCost = calculateRequiredCost();
 
-        // TỰ ĐỘNG XOAY TUA TÀI KHOẢN NẾU THIẾU CREDIT
         AccountModel account = storage.findEligibleAccount(requiredCost);
         if (account == null) {
-            Toast.makeText(this, "Tất cả tài khoản đều không đủ " + requiredCost + " Credits! Hãy nhận thưởng hoặc thêm tài khoản mới.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Tất cả tài khoản đều không đủ " + requiredCost + " Credits! Hãy nhận thưởng hoặc đăng ký tài khoản mới.", Toast.LENGTH_LONG).show();
             return;
         }
 
@@ -729,13 +998,17 @@ public class MainActivity extends AppCompatActivity {
         String neg = etNegativePrompt.getText().toString().trim();
         String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
 
-        executor.execute(() -> executeGenerationWithRetry(account, prompt, neg, proxy, requiredCost));
+        List<String> contextList = new ArrayList<>(attachedMediaIds);
+
+        executor.execute(() -> executeGenerationWithRetry(account, prompt, neg, proxy, requiredCost, contextList));
     }
 
-    private void executeGenerationWithRetry(AccountModel account, String prompt, String neg, String proxy, long requiredCost) {
+    private void executeGenerationWithRetry(AccountModel account, String prompt, String neg, String proxy, long requiredCost, List<String> contextList) {
         try {
-            // Tự động tắt làm mờ ảnh nhạy cảm & xác nhận 18+
-            PixAiApiHelper.unblurNsfw(account.getToken(), proxy);
+            // Mở khóa 18+ với bằng chứng GraphQL
+            StringBuilder proof = new StringBuilder();
+            PixAiApiHelper.unblurNsfw(account.getToken(), proxy, proof);
+            mainHandler.post(() -> logMessage("Xác thực 18+ cho " + account.getEmail() + ": " + proof.toString()));
 
             mainHandler.post(() -> tvGenStatus.setText("Bước 2/4: Đang gửi lệnh khởi tạo tới GPU PixAI (" + currentProfile.toUpperCase() + ")..."));
 
@@ -743,18 +1016,17 @@ public class MainActivity extends AppCompatActivity {
                     account.getToken(),
                     currentProfile,
                     isReal,
-                    currentQuality,
+                    "standard",
                     selectedWidth,
                     selectedHeight,
                     batchCount,
                     prompt,
                     neg,
-                    attachedMediaId,
+                    contextList,
                     proxy,
                     (msg, sec) -> mainHandler.post(() -> tvGenStatus.setText("Bước 3/4: " + msg))
             );
 
-            // Xử lý khi tài khoản bị báo hết Credit từ Server
             if (res.insufficientBalance) {
                 mainHandler.post(() -> logMessage("Tài khoản " + account.getEmail() + " hết Credit trên server! Tự động xoay sang tài khoản khác..."));
                 account.setCredits(0);
@@ -767,7 +1039,7 @@ public class MainActivity extends AppCompatActivity {
                         refreshHeader();
                         tvGenStatus.setText("Đang tự động đổi sang: " + nextAcc.getEmail() + "...");
                     });
-                    executeGenerationWithRetry(nextAcc, prompt, neg, proxy, requiredCost);
+                    executeGenerationWithRetry(nextAcc, prompt, neg, proxy, requiredCost, contextList);
                     return;
                 } else {
                     mainHandler.post(() -> {
@@ -791,10 +1063,10 @@ public class MainActivity extends AppCompatActivity {
                     tvGenStatus.setText("Bước 4/4: Khởi tạo hoàn tất 100%! Tác vụ thành công.");
                     tvGenStatus.setTextColor(0xFF81C784);
 
-                    // Trừ credit nội bộ
                     account.setCredits(Math.max(0, account.getCredits() - requiredCost));
                     storage.addAccount(account);
                     refreshHeader();
+                    updateCostBadge();
 
                     lastOriginalPrompt = res.originalPrompt;
                     lastServerPrompt = res.serverPrompt;
@@ -802,7 +1074,6 @@ public class MainActivity extends AppCompatActivity {
                     currentResultImages.addAll(res.imageUrls);
                     currentCarouselIdx = 0;
 
-                    // Lưu vào Kho Lịch Sử Được Mã Hóa
                     for (String url : res.imageUrls) {
                         HistoryItem hist = new HistoryItem(
                                 url,
@@ -818,7 +1089,6 @@ public class MainActivity extends AppCompatActivity {
                         storage.addHistoryItem(hist);
                     }
 
-                    // Hiển thị kết quả & Carousel
                     layoutResultCard.setVisibility(View.VISIBLE);
                     tvResOriginalPrompt.setText(res.originalPrompt);
                     tvResServerPrompt.setText(res.serverPrompt);
@@ -855,9 +1125,7 @@ public class MainActivity extends AppCompatActivity {
                 InputStream is = conn.getInputStream();
                 Bitmap bitmap = BitmapFactory.decodeStream(is);
                 mainHandler.post(() -> {
-                    if (bitmap != null) {
-                        ivResultPreview.setImageBitmap(bitmap);
-                    }
+                    if (bitmap != null) ivResultPreview.setImageBitmap(bitmap);
                 });
             } catch (Exception ignored) {}
         });
@@ -869,10 +1137,9 @@ public class MainActivity extends AppCompatActivity {
 
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
-        container.setBackgroundColor(0xFF121212);
+        container.setBackgroundColor(0xFF0A0A0A);
         container.setPadding(16, 16, 16, 16);
 
-        // Header controls
         LinearLayout topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setPadding(0, 0, 0, 16);
@@ -973,47 +1240,91 @@ public class MainActivity extends AppCompatActivity {
         accountAdapter = new AccountAdapter(this, new ArrayList<>());
         lvAccounts.setAdapter(accountAdapter);
 
-        // Thêm tài khoản thủ công hoặc danh sách
         btnAddAccountDirect.setOnClickListener(v -> {
             String input = etNewAccountToken.getText().toString().trim();
             if (input.isEmpty()) {
-                Toast.makeText(this, "Vui lòng nhập hoặc dán token!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Vui lòng nhập Bearer Token!", Toast.LENGTH_SHORT).show();
                 return;
             }
+            if (input.startsWith("Bearer ")) input = input.substring(7).trim();
+            final String token = input;
 
-            String[] lines = input.split("\n");
-            Toast.makeText(this, "Đang kiểm tra và thêm " + lines.length + " tài khoản...", Toast.LENGTH_SHORT).show();
-
+            Toast.makeText(this, "Đang kiểm tra và thêm tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
-                int added = 0;
                 String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                long quota = PixAiApiHelper.getQuota(token, proxy);
+                String email = "acc_" + (System.currentTimeMillis() % 100000) + "@nexus.com";
+                AccountModel acc = new AccountModel(email, token, quota);
+                storage.addAccount(acc);
 
-                for (String line : lines) {
-                    String t = line.trim();
-                    if (t.startsWith("Bearer ")) t = t.substring(7).trim();
-                    if (t.length() < 20) continue;
-
-                    long quota = PixAiApiHelper.getQuota(t, proxy);
-                    String email = "pixai_acc_" + (System.currentTimeMillis() % 100000) + "@nexus.com";
-                    AccountModel acc = new AccountModel(email, t, quota);
-                    storage.addAccount(acc);
-                    added++;
-                }
-
-                final int count = added;
                 mainHandler.post(() -> {
                     etNewAccountToken.setText("");
                     refreshAccountsList();
                     refreshHeader();
-                    logMessage("Đã thêm thành công " + count + " tài khoản vào danh sách.");
-                    Toast.makeText(this, "Đã thêm " + count + " tài khoản thành công!", Toast.LENGTH_SHORT).show();
+                    updateCostBadge();
+                    logMessage("Đã thêm tài khoản: " + email + " với " + quota + " CR");
+                    Toast.makeText(this, "Thêm tài khoản thành công!", Toast.LENGTH_SHORT).show();
                 });
             });
         });
 
-        // Đồng bộ số dư toàn bộ tài khoản
+        // TỰ ĐĂNG KÝ TÀI KHOẢN MỚI TỰ ĐỘNG
+        btnAutoRegAcc.setOnClickListener(v -> {
+            Toast.makeText(this, "Đang khởi tạo trình đăng ký PixAI tự động...", Toast.LENGTH_SHORT).show();
+            logMessage("Bắt đầu quy trình tự đăng ký tài khoản mới...");
+
+            String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+            String randomEmail = "user" + System.currentTimeMillis() + "@gmail.com";
+            String randomPass = "Nexus@" + (System.currentTimeMillis() % 1000000) + "X!";
+
+            HeadlessAccountRegistrar registrar = new HeadlessAccountRegistrar(this);
+            registrar.startHeadlessRegistration(randomEmail, randomPass, new HeadlessAccountRegistrar.RegistrationCallback() {
+                @Override
+                public void onProgress(String message, String color) {
+                    logMessage(message);
+                }
+
+                @Override
+                public void onSuccess(String email, String password, String token) {
+                    logMessage("Đăng ký thành công: " + email + ". Đang tự nhận thưởng và mở khóa 18+...");
+                    executor.execute(() -> {
+                        PixAiApiHelper.claimDailyCredits(token, proxy);
+                        PixAiApiHelper.claimSocialAndVisitQuests(token, proxy);
+                        PixAiApiHelper.unblurNsfw(token, proxy);
+                        long quota = PixAiApiHelper.getQuota(token, proxy);
+                        AccountModel acc = new AccountModel(email, password, token, quota);
+                        storage.addAccount(acc);
+
+                        mainHandler.post(() -> {
+                            refreshAccountsList();
+                            refreshHeader();
+                            updateCostBadge();
+                            logMessage("Tự đăng ký hoàn tất tài khoản: " + email + " với " + quota + " CR.");
+                            Toast.makeText(MainActivity.this, "Tự đăng ký thành công: " + email + " (" + quota + " CR)", Toast.LENGTH_LONG).show();
+                        });
+                    });
+                }
+
+                @Override
+                public void onError(String error) {
+                    logMessage("Đăng ký thất bại: " + error);
+                    Toast.makeText(MainActivity.this, "Lỗi đăng ký: " + error, Toast.LENGTH_LONG).show();
+                }
+            });
+        });
+
+        // NHẬP TEXT LIST HÀNG LOẠT
+        btnImportText.setOnClickListener(v -> showImportTextDialog());
+
+        // NHẬP JSON
+        btnImportJson.setOnClickListener(v -> showImportJsonDialog());
+
+        // XUẤT JSON
+        btnExportJson.setOnClickListener(v -> exportAccountsJson());
+
+        // Đồng bộ số dư
         btnSyncAllCredits.setOnClickListener(v -> {
-            Toast.makeText(this, "Đang đồng bộ số dư toàn bộ tài khoản từ PixAI Server...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Đang đồng bộ số dư toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
                 String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
@@ -1027,13 +1338,14 @@ public class MainActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     refreshAccountsList();
                     refreshHeader();
+                    updateCostBadge();
                     logMessage("Đồng bộ số dư toàn bộ tài khoản hoàn tất.");
                     Toast.makeText(this, "Đồng bộ số dư thành công!", Toast.LENGTH_SHORT).show();
                 });
             });
         });
 
-        // Nhận thưởng Daily toàn bộ
+        // Nhận thưởng Daily
         btnBatchClaimDaily.setOnClickListener(v -> {
             Toast.makeText(this, "Đang nhận thưởng Daily cho toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
@@ -1052,13 +1364,14 @@ public class MainActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     refreshAccountsList();
                     refreshHeader();
+                    updateCostBadge();
                     logMessage("Nhận Daily hoàn tất: Thành công " + totalSucc + " tài khoản.");
                     Toast.makeText(this, "Nhận Daily hoàn tất cho " + totalSucc + " tài khoản!", Toast.LENGTH_SHORT).show();
                 });
             });
         });
 
-        // Nhận All Thưởng Quests toàn bộ
+        // Nhận All Thưởng Quests
         btnBatchClaimFull.setOnClickListener(v -> {
             Toast.makeText(this, "Đang nhận toàn bộ Social & Visit Quests...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
@@ -1077,6 +1390,7 @@ public class MainActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     refreshAccountsList();
                     refreshHeader();
+                    updateCostBadge();
                     logMessage("Nhận toàn bộ nhiệm vụ hoàn tất: " + count + " lượt thành công.");
                     Toast.makeText(this, "Nhận thưởng hoàn tất: " + count + " nhiệm vụ!", Toast.LENGTH_SHORT).show();
                 });
@@ -1106,9 +1420,78 @@ public class MainActivity extends AppCompatActivity {
             storage.clearAllAccounts();
             refreshAccountsList();
             refreshHeader();
+            updateCostBadge();
             logMessage("Đã xóa toàn bộ tài khoản khỏi ứng dụng.");
             Toast.makeText(this, "Đã xóa toàn bộ tài khoản!", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private void showImportTextDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Nhập Token Hàng Loạt (Text)");
+
+        final EditText input = new EditText(this);
+        input.setHint("Dán mỗi dòng 1 token hoặc email:token...");
+        input.setMinLines(5);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        builder.setView(input);
+
+        builder.setPositiveButton("Nhập", (dialog, which) -> {
+            String text = input.getText().toString().trim();
+            if (text.isEmpty()) return;
+            int count = storage.importAccountsFromTextLines(text);
+            refreshAccountsList();
+            refreshHeader();
+            updateCostBadge();
+            logMessage("Đã nhập hàng loạt " + count + " tài khoản từ text.");
+            Toast.makeText(this, "Đã nhập thành công " + count + " tài khoản!", Toast.LENGTH_SHORT).show();
+        });
+        builder.setNegativeButton("Hủy", (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
+    private void showImportJsonDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Nhập Danh Sách Tài Khoản (JSON)");
+
+        final EditText input = new EditText(this);
+        input.setHint("Dán nội dung JSON đã sao lưu vào đây...");
+        input.setMinLines(6);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE);
+        builder.setView(input);
+
+        builder.setPositiveButton("Nhập JSON", (dialog, which) -> {
+            String jsonStr = input.getText().toString().trim();
+            if (jsonStr.isEmpty()) return;
+            int count = storage.importAccountsFromJsonString(jsonStr);
+            refreshAccountsList();
+            refreshHeader();
+            updateCostBadge();
+            logMessage("Đã nhập " + count + " tài khoản từ backup JSON.");
+            Toast.makeText(this, "Đã nhập thành công " + count + " tài khoản!", Toast.LENGTH_SHORT).show();
+        });
+        builder.setNegativeButton("Hủy", (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
+    private void exportAccountsJson() {
+        String json = storage.exportAccountsToJsonString();
+        ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData cd = ClipData.newPlainText("Nexus Accounts Backup", json);
+        cm.setPrimaryClip(cd);
+
+        try {
+            File downloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File backupFile = new File(downloads, "nexus_accounts_backup.json");
+            FileOutputStream fos = new FileOutputStream(backupFile);
+            fos.write(json.getBytes(StandardCharsets.UTF_8));
+            fos.close();
+            logMessage("Đã xuất JSON ra file: " + backupFile.getAbsolutePath());
+            Toast.makeText(this, "Đã lưu vào Downloads/nexus_accounts_backup.json & Copy vào Clipboard!", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            logMessage("Đã sao chép JSON vào Clipboard: " + e.getMessage());
+            Toast.makeText(this, "Đã sao chép danh sách JSON vào Clipboard!", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void refreshAccountsList() {
@@ -1119,10 +1502,26 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // --- TAB 3: KHO LỊCH SỬ MÃ HÓA ---
+    // --- TAB 3: KHO LỊCH SỬ MÃ HÓA & BẢO MẬT PIN ---
     private void setupHistoryActions() {
         historyAdapter = new HistoryAdapter(this, new ArrayList<>());
         lvHistory.setAdapter(historyAdapter);
+
+        btnHistorySecurity.setOnClickListener(v -> showHistorySecurityDialog());
+
+        btnUnlockHistory.setOnClickListener(v -> {
+            String entered = etHistoryUnlockPin.getText().toString().trim();
+            if (storage.checkHistoryPassword(entered)) {
+                isHistoryUnlocked = true;
+                etHistoryUnlockPin.setText("");
+                layoutHistoryLocked.setVisibility(View.GONE);
+                layoutHistoryContent.setVisibility(View.VISIBLE);
+                refreshHistoryList();
+                Toast.makeText(this, "Mở khóa kho lịch sử thành công!", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, "Mật khẩu / PIN không chính xác!", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         btnClearHistory.setOnClickListener(v -> {
             storage.clearHistory();
@@ -1136,6 +1535,50 @@ public class MainActivity extends AppCompatActivity {
             refreshHistoryList();
             Toast.makeText(this, "Đã mở rộng hiển thị " + historyPageLimit + " phiên lịch sử.", Toast.LENGTH_SHORT).show();
         });
+    }
+
+    private void checkHistoryLockAndRefresh() {
+        if (storage.isHistoryPasswordEnabled() && !isHistoryUnlocked) {
+            layoutHistoryLocked.setVisibility(View.VISIBLE);
+            layoutHistoryContent.setVisibility(View.GONE);
+        } else {
+            layoutHistoryLocked.setVisibility(View.GONE);
+            layoutHistoryContent.setVisibility(View.VISIBLE);
+            refreshHistoryList();
+        }
+    }
+
+    private void showHistorySecurityDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Thiết Lập Bảo Mật Kho Lịch Sử");
+
+        if (storage.isHistoryPasswordEnabled()) {
+            builder.setMessage("Kho lịch sử đang được bảo vệ bằng mật khẩu.\nBạn muốn gỡ bỏ hay đổi mật khẩu?");
+            builder.setPositiveButton("Gỡ Mật Khẩu", (d, w) -> {
+                storage.removeHistoryPassword();
+                isHistoryUnlocked = true;
+                checkHistoryLockAndRefresh();
+                Toast.makeText(this, "Đã gỡ bảo mật mật khẩu!", Toast.LENGTH_SHORT).show();
+            });
+            builder.setNegativeButton("Đóng", (d, w) -> d.cancel());
+        } else {
+            final EditText input = new EditText(this);
+            input.setHint("Nhập mật khẩu hoặc mã PIN bảo vệ");
+            input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+            builder.setView(input);
+
+            builder.setPositiveButton("Đặt Mật Khẩu", (d, w) -> {
+                String pass = input.getText().toString().trim();
+                if (!pass.isEmpty()) {
+                    storage.setHistoryPassword(pass);
+                    isHistoryUnlocked = false;
+                    checkHistoryLockAndRefresh();
+                    Toast.makeText(this, "Đã kích hoạt mật khẩu bảo vệ kho lịch sử!", Toast.LENGTH_SHORT).show();
+                }
+            });
+            builder.setNegativeButton("Hủy", (d, w) -> d.cancel());
+        }
+        builder.show();
     }
 
     private void refreshHistoryList() {
@@ -1164,6 +1607,7 @@ public class MainActivity extends AppCompatActivity {
             storage.setAutoRotateAccounts(autoR);
 
             refreshHeader();
+            updateCostBadge();
             Toast.makeText(this, "Đã lưu cấu hình Bảo Mật & Proxy Shield!", Toast.LENGTH_SHORT).show();
             logMessage("Đã cập nhật cấu hình: Proxy=" + addr + " (Shield=" + (useP ? "BẬT" : "TẮT") + ", Fallback=" + (fb ? "BẬT" : "TẮT") + ")");
         });
@@ -1224,7 +1668,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // --- ADAPTER CHO TÀI KHOẢN ---
+    // --- ADAPTERS ---
     private class AccountAdapter extends ArrayAdapter<AccountModel> {
         public AccountAdapter(Context ctx, List<AccountModel> items) {
             super(ctx, 0, items);
@@ -1256,6 +1700,7 @@ public class MainActivity extends AppCompatActivity {
                 storage.setActiveEmail(item.getEmail());
                 refreshAccountsList();
                 refreshHeader();
+                updateCostBadge();
                 Toast.makeText(getContext(), "Đã chọn tài khoản: " + item.getEmail(), Toast.LENGTH_SHORT).show();
             });
 
@@ -1263,6 +1708,7 @@ public class MainActivity extends AppCompatActivity {
                 storage.deleteAccount(item.getEmail());
                 refreshAccountsList();
                 refreshHeader();
+                updateCostBadge();
                 Toast.makeText(getContext(), "Đã xóa tài khoản!", Toast.LENGTH_SHORT).show();
             });
 
@@ -1270,7 +1716,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // --- ADAPTER CHO KHO LỊCH SỬ MÃ HÓA CÓ THUMBNAIL ---
     private class HistoryAdapter extends ArrayAdapter<HistoryItem> {
         public HistoryAdapter(Context ctx, List<HistoryItem> items) {
             super(ctx, 0, items);
@@ -1291,7 +1736,6 @@ public class MainActivity extends AppCompatActivity {
             tvPrompt.setText(item.getOriginalPrompt());
             tvDate.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date(item.getTimestamp())));
 
-            // Load decrypted thumbnail từ memory/cache
             Bitmap cached = storage.getDecryptedImageCache(item.getId());
             if (cached != null) {
                 ivThumb.setImageBitmap(cached);

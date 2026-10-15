@@ -148,23 +148,37 @@ public class PixAiApiHelper {
         return new JSONObject(sb.toString().trim());
     }
 
-    public static void unblurNsfw(String token, String proxyStr) {
+    public static boolean unblurNsfw(String token, String proxyStr, StringBuilder proofLog) {
         try {
             JSONObject q = new JSONObject();
-            q.put("query", "mutation updateUserSettings($input: UpdateUserSettingsInput!) {\n" +
-                    "  updateUserSettings(input: $input) {\n" +
-                    "    isNsfw\n" +
-                    "    showNsfw\n" +
-                    "  }\n" +
+            q.put("query", "mutation setPreferences($value: JSONObject!) {\n" +
+                    "  setPreferences(value: $value)\n" +
                     "}");
             JSONObject vars = new JSONObject();
-            JSONObject inp = new JSONObject();
-            inp.put("isNsfw", true);
-            inp.put("showNsfw", true);
-            vars.put("input", inp);
+            JSONObject val = new JSONObject();
+            val.put("isNsfw", true);
+            val.put("showNsfw", true);
+            val.put("blurNsfw", false);
+            val.put("nsfwFilter", false);
+            val.put("ageConfirmed", true);
+            vars.put("value", val);
             q.put("variables", vars);
-            sendGraphQL(q, token, proxyStr);
-        } catch (Exception ignored) {}
+
+            JSONObject res = sendGraphQL(q, token, proxyStr);
+            if (proofLog != null) {
+                proofLog.append(res.toString());
+            }
+            return !res.has("errors");
+        } catch (Exception e) {
+            if (proofLog != null) {
+                proofLog.append("Lỗi: ").append(e.getMessage());
+            }
+            return false;
+        }
+    }
+
+    public static void unblurNsfw(String token, String proxyStr) {
+        unblurNsfw(token, proxyStr, null);
     }
 
     public static long getQuota(String token, String proxyStr) {
@@ -266,6 +280,27 @@ public class PixAiApiHelper {
             String proxyStr,
             ProgressCallback callback
     ) {
+        List<String> list = new ArrayList<>();
+        if (attachedMediaId != null && !attachedMediaId.trim().isEmpty()) {
+            list.add(attachedMediaId.trim());
+        }
+        return createAndPollGenerationTask(token, profile, isReal, qualityMode, width, height, batchSize, prompt, customNegative, list, proxyStr, callback);
+    }
+
+    public static TaskResult createAndPollGenerationTask(
+            String token,
+            String profile, // "flash", "pro", "ultra"
+            boolean isReal,
+            String qualityMode, // "standard", "high", "ultra"
+            int width,
+            int height,
+            int batchSize,
+            String prompt,
+            String customNegative,
+            List<String> attachedMediaIds,
+            String proxyStr,
+            ProgressCallback callback
+    ) {
         TaskResult result = new TaskResult();
         result.originalPrompt = prompt;
 
@@ -312,29 +347,37 @@ public class PixAiApiHelper {
                 params.put("negativePrompts", neg);
             }
 
-            // Xử lý đính kèm ảnh (Context Image) hoặc LoRA Realism
-            if (attachedMediaId != null && !attachedMediaId.trim().isEmpty()) {
+            // Xử lý danh sách đính kèm nhiều ảnh (Context Images) hoặc LoRA Realism
+            boolean hasContext = false;
+            if (attachedMediaIds != null && !attachedMediaIds.isEmpty()) {
                 JSONArray ctx = new JSONArray();
-                ctx.put(attachedMediaId.trim());
-                params.put("contextImages", ctx);
-            } else {
-                if (isReal) {
-                    JSONObject loraMap = new JSONObject();
-                    loraMap.put(REALISTIC_LORA_ID, 0.70);
-                    params.put("lora", loraMap);
-
-                    JSONArray loraParams = new JSONArray();
-                    JSONObject lp = new JSONObject();
-                    lp.put("versionId", REALISTIC_LORA_ID);
-                    lp.put("weight", 0.70);
-                    lp.put("triggerWords", REALISTIC_LORA_TRIGGERS);
-                    JSONObject pos = new JSONObject();
-                    pos.put("startIndex", 0);
-                    pos.put("endIndex", 0);
-                    lp.put("positionInfo", pos);
-                    loraParams.put(lp);
-                    params.put("loraParameters", loraParams);
+                for (String mid : attachedMediaIds) {
+                    if (mid != null && !mid.trim().isEmpty()) {
+                        ctx.put(mid.trim());
+                        hasContext = true;
+                    }
                 }
+                if (hasContext) {
+                    params.put("contextImages", ctx);
+                }
+            }
+
+            if (!hasContext && isReal) {
+                JSONObject loraMap = new JSONObject();
+                loraMap.put(REALISTIC_LORA_ID, 0.70);
+                params.put("lora", loraMap);
+
+                JSONArray loraParams = new JSONArray();
+                JSONObject lp = new JSONObject();
+                lp.put("versionId", REALISTIC_LORA_ID);
+                lp.put("weight", 0.70);
+                lp.put("triggerWords", REALISTIC_LORA_TRIGGERS);
+                JSONObject pos = new JSONObject();
+                pos.put("startIndex", 0);
+                pos.put("endIndex", 0);
+                lp.put("positionInfo", pos);
+                loraParams.put(lp);
+                params.put("loraParameters", loraParams);
             }
 
             JSONObject vars = new JSONObject();
