@@ -14,8 +14,13 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class PixAiApiHelper {
+
+    public interface LogCallback {
+        void log(String message);
+    }
 
     public static final String GRAPHQL_URL = "https://api.pixai.art/graphql";
     public static final String PERSISTED_HASH = "83f9afa2ae341c3dd9dd1ed56d205331a8fa076215e4a651c462bbca8a437725";
@@ -391,5 +396,65 @@ public class PixAiApiHelper {
             conn2.getOutputStream().write("{}".getBytes(StandardCharsets.UTF_8));
             conn2.getResponseCode();
         } catch (Exception ignored) {}
+    }
+
+    public static String httpRequestWithHeaders(String urlStr, String method, Map<String, String> headers, byte[] body, String proxyStr, int timeoutSec) {
+        try {
+            URL url = new URL(urlStr);
+            HttpURLConnection conn;
+            if (proxyStr != null && !proxyStr.trim().isEmpty()) {
+                String clean = proxyStr.replace("http://", "").replace("https://", "").replace("socks5://", "");
+                String[] parts = clean.split("@");
+                String hostPort = parts.length > 1 ? parts[1] : parts[0];
+                String[] hp = hostPort.split(":");
+                Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(hp[0], Integer.parseInt(hp[1])));
+                conn = (HttpURLConnection) url.openConnection(proxy);
+            } else {
+                conn = (HttpURLConnection) url.openConnection();
+            }
+
+            conn.setRequestMethod(method != null ? method : "GET");
+            conn.setConnectTimeout(timeoutSec > 0 ? timeoutSec * 1000 : 15000);
+            conn.setReadTimeout(timeoutSec > 0 ? timeoutSec * 1000 : 15000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    conn.setRequestProperty(entry.getKey(), entry.getValue());
+                }
+            }
+
+            if (body != null && body.length > 0) {
+                conn.setDoOutput(true);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body);
+                }
+            }
+
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) return "";
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append("\n");
+                }
+                return sb.toString().trim();
+            }
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static String executeSocketHttpRequest(String urlStr, String method, Map<String, String> headers, byte[] body, SecurityShieldManager.ParsedProxy proxy, int timeoutSec) {
+        String proxyStr = proxy != null ? proxy.toNormalizedUrl() : null;
+        return httpRequestWithHeaders(urlStr, method, headers, body, proxyStr, timeoutSec);
+    }
+
+    public static List<String> fetchShareFreeProxyPool(LogCallback log) {
+        List<String> list = new ArrayList<>();
+        list.add("http://p.webshare.io:80");
+        return list;
     }
 }

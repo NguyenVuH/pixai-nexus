@@ -58,6 +58,10 @@ public class SecurityShieldManager {
     private static final AtomicLong blockedTrackersCount = new AtomicLong(0);
     private static final AtomicLong dohResolvedCount = new AtomicLong(0);
 
+    public static void initialize(android.content.Context context) {
+        ensureLocalTunnelRunning();
+    }
+
     private static class DnsCacheEntry {
         final String ip;
         final long expireAt;
