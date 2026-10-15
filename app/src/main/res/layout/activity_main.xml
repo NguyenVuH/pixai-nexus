@@ -982,7 +982,7 @@
                             android:layout_marginStart="6dp"
                             android:layout_weight="1"
                             android:background="@drawable/bg_cyber_chip_normal"
-                            android:text="4 Ảnh (Chỉ Flash)"
+                            android:text="4 Ảnh"
                             android:textAllCaps="false"
                             android:textColor="#9E9E9E"
                             android:textSize="11sp" />

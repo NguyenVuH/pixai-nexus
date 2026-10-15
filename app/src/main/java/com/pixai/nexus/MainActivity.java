@@ -487,11 +487,6 @@ public class MainActivity extends AppCompatActivity {
         btnProfilePro.setOnClickListener(v -> {
             currentProfile = "pro";
             storage.setSavedProfile("pro");
-            if (batchCount > 1) {
-                batchCount = 1;
-                storage.setSavedBatch(1);
-                updateBatchButtonsDisplay();
-            }
             updateProfileButtonsDisplay();
             updateCostBadge();
         });
@@ -499,11 +494,6 @@ public class MainActivity extends AppCompatActivity {
         btnProfileUltra.setOnClickListener(v -> {
             currentProfile = "ultra";
             storage.setSavedProfile("ultra");
-            if (batchCount > 1) {
-                batchCount = 1;
-                storage.setSavedBatch(1);
-                updateBatchButtonsDisplay();
-            }
             updateProfileButtonsDisplay();
             updateCostBadge();
         });
@@ -723,10 +713,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnBatch4.setOnClickListener(v -> {
-            if (!"flash".equalsIgnoreCase(currentProfile)) {
-                Toast.makeText(this, "Số lượng 4 ảnh chỉ hỗ trợ ở chế độ Flash!", Toast.LENGTH_SHORT).show();
-                return;
-            }
             batchCount = 4;
             storage.setSavedBatch(4);
             updateBatchButtonsDisplay();

@@ -91,7 +91,7 @@ MODELS = {
         "profile": "pro",
         "hasNegative": True,
         "cost1": 4000,
-        "cost4": 16000
+        "cost4": 9500
     },
     "ultra": {
         "name": "Tsubaki 3 ULTRA (Đỉnh Cao)",
@@ -99,9 +99,44 @@ MODELS = {
         "profile": "ultra",
         "hasNegative": True,
         "cost1": 5500,
-        "cost4": 22000
+        "cost4": 13000
     }
 }
+
+def calculate_task_cost(profile: str, width: int, height: int, batch: int, has_reference_images: bool = False) -> int:
+    pixels = width * height
+    if pixels <= 768 * 1280:
+        tier = "m"
+    elif pixels <= 944 * 1584:
+        tier = "l"
+    else:
+        tier = "xl"
+
+    pricing = {
+        "flash": {
+            "m":  {1: 1900, 4: 4400},
+            "l":  {1: 2400, 4: 5500},
+            "xl": {1: 3000, 4: 7000}
+        },
+        "pro": {
+            "m":  {1: 4000, 4: 9500},
+            "l":  {1: 5000, 4: 12000},
+            "xl": {1: 6500, 4: 15500}
+        },
+        "ultra": {
+            "m":  {1: 5500, 4: 13000},
+            "l":  {1: 7000, 4: 16500},
+            "xl": {1: 9000, 4: 21500}
+        }
+    }
+    prof = (profile or "flash").lower()
+    if prof not in pricing:
+        prof = "flash"
+    b = 4 if batch == 4 else 1
+    base = pricing[prof][tier][b]
+    if not has_reference_images:
+        base += 500
+    return base
 
 REALISTIC_LORA = {
     "versionId": "2059543732132340175",
@@ -149,7 +184,27 @@ def http_graphql(payload, token, proxy=None, timeout=30):
     return json.loads(raw.decode("utf-8"))
 
 def unblur_nsfw_for_account(token, proxy=None, proof_collector=None):
-    """Mở khóa 18+ và bỏ làm mờ nhạy cảm chuẩn xác với mutation setPreferences"""
+    """Xác nhận người lớn (Adult) và mở khóa 18+ toàn diện qua REST Content-Safety API & GraphQL setPreferences"""
+    clean_token = token.replace("Bearer ", "").strip()
+    headers = {
+        "Authorization": f"Bearer {clean_token}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+
+    # 1. Gọi trực tiếp REST API Content Safety Preferences (giải quyết triệt để lỗi 'nsfw prompts detected adult not set')
+    safety_endpoints = [
+        ("https://api.pixai.art/v2/me/content-safety/preferences/age-verified", {"value": "adult"}),
+        ("https://api.pixai.art/v2/me/content-safety/preferences/show-nsfw", {"value": "show"}),
+        ("https://api.pixai.art/v2/me/content-safety/preferences/blur-nsfw", {"value": "show"})
+    ]
+    for url, body_data in safety_endpoints:
+        try:
+            http_request(url, method="PUT", data=body_data, headers=headers, proxy=proxy, timeout=8)
+        except Exception:
+            pass
+
+    # 2. Đồng bộ qua GraphQL mutation setPreferences
     try:
         mutation = {
             "query": """mutation setPreferences($value: JSONObject!) {
@@ -157,17 +212,30 @@ def unblur_nsfw_for_account(token, proxy=None, proof_collector=None):
 }""",
             "variables": {
                 "value": {
+                    "ageVerified": "adult",
+                    "isAdult": True,
+                    "adult": True,
+                    "ageConfirmed": True,
+                    "ageVerificationStatus": "VERIFIED",
                     "isNsfw": True,
                     "showNsfw": True,
                     "blurNsfw": False,
-                    "nsfwFilter": False,
-                    "ageConfirmed": True
+                    "nsfwFilter": False
                 }
             }
         }
-        res = http_graphql(mutation, token, proxy=proxy, timeout=12)
-        if proof_collector is not None:
-            proof_collector.append(json.dumps(res, ensure_ascii=False))
+        res = http_graphql(mutation, clean_token, proxy=proxy, timeout=12)
+
+        # 3. Lấy bằng chứng trực tiếp từ máy chủ PixAI
+        try:
+            raw_verify = http_request("https://api.pixai.art/v2/me/content-safety/preferences", method="GET", headers=headers, proxy=proxy, timeout=8)
+            verify_data = json.loads(raw_verify.decode("utf-8"))
+            if proof_collector is not None:
+                proof_collector.append(f"Content-Safety: {json.dumps(verify_data, ensure_ascii=False)}")
+        except Exception:
+            if proof_collector is not None:
+                proof_collector.append(json.dumps(res, ensure_ascii=False))
+
         return "errors" not in res
     except Exception as e:
         if proof_collector is not None:
@@ -566,7 +634,7 @@ class PixAiNexusStudio(tk.Tk):
         self.btn_batch1 = tk.Button(row_batch, text="1 Ảnh", bg=self.c_active, fg=self.c_text, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8, "bold"), command=lambda: self.set_batch(1))
         self.btn_batch1.pack(side="left", padx=(10, 4))
 
-        self.btn_batch4 = tk.Button(row_batch, text="4 Ảnh (Chỉ Flash)", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=lambda: self.set_batch(4))
+        self.btn_batch4 = tk.Button(row_batch, text="4 Ảnh", bg=self.c_input, fg=self.c_muted, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 8), command=lambda: self.set_batch(4))
         self.btn_batch4.pack(side="left")
 
         # 5. Đính Kèm Đa Ảnh Mẫu (Img2Img)
@@ -893,9 +961,6 @@ class PixAiNexusStudio(tk.Tk):
             active = (p == profile)
             btn.config(bg=self.c_active if active else self.c_input, fg=self.c_text if active else self.c_muted, font=("Segoe UI", 9, "bold" if active else "normal"))
 
-        if profile != "flash" and self.batch_count.get() > 1:
-            self.set_batch(1)
-
         self.update_live_cost()
 
     def set_size_tier(self, tier):
@@ -979,11 +1044,9 @@ class PixAiNexusStudio(tk.Tk):
         cur_r = self.current_ratio.get()
         if hasattr(self, "lbl_ratio_dims"):
             self.lbl_ratio_dims.config(text=f"Tỷ lệ: {cur_r} • Kích thước: {w} x {h} px ({desc})")
+        self.update_live_cost()
 
     def set_batch(self, count):
-        if count == 4 and self.current_profile.get() != "flash":
-            messagebox.showinfo("Thông báo", "Số lượng 4 ảnh chỉ hỗ trợ ở chế độ Flash (Siêu Tốc)!")
-            return
         self.batch_count.set(count)
         self.btn_batch1.config(bg=self.c_active if count == 1 else self.c_input, fg=self.c_text if count == 1 else self.c_muted, font=("Segoe UI", 8, "bold" if count == 1 else "normal"))
         self.btn_batch4.config(bg=self.c_active if count == 4 else self.c_input, fg=self.c_text if count == 4 else self.c_muted, font=("Segoe UI", 8, "bold" if count == 4 else "normal"))
@@ -992,7 +1055,9 @@ class PixAiNexusStudio(tk.Tk):
     def update_live_cost(self):
         prof = self.current_profile.get()
         b = self.batch_count.get()
-        cost = MODELS.get(prof, {}).get(f"cost{b}", 100)
+        w, h, _ = self.get_selected_dimensions()
+        has_ref = bool(self.attached_media_list)
+        cost = calculate_task_cost(prof, w, h, b, has_ref)
 
         # Kiểm tra tài khoản có đủ credit
         eligible_acc = None
@@ -1036,24 +1101,43 @@ class PixAiNexusStudio(tk.Tk):
                 if not self.first_attached_dims:
                     self.first_attached_dims = pil_img.size
 
-                # Upload to PixAI
-                # 1. getUploadUrl
+                # Tải ảnh lên PixAI 3 bước chuẩn xác
+                # Bước 1: Yêu cầu S3 uploadUrl và externalId
                 res1 = http_graphql({
-                    "query": """mutation getUploadUrl($contentType: String!, $category: String) {
-                        getUploadUrl(contentType: $contentType, category: $category) {
+                    "query": """mutation uploadMedia($input: UploadMediaInput!) {
+                        uploadMedia(input: $input) {
                             uploadUrl
+                            externalId
                             mediaId
                         }
                     }""",
-                    "variables": {"contentType": "image/jpeg", "category": "context-image"}
+                    "variables": {"input": {"type": "IMAGE", "provider": "S3"}}
                 }, token, proxy=proxy, timeout=20)
-                u_info = res1.get("data", {}).get("getUploadUrl", {})
+                u_info = res1.get("data", {}).get("uploadMedia", {})
                 upload_url = u_info.get("uploadUrl")
-                media_id = u_info.get("mediaId")
+                ext_id = u_info.get("externalId")
 
-                if upload_url and media_id:
+                if upload_url and ext_id:
+                    # Bước 2: Đẩy dữ liệu ảnh nhị phân lên AWS S3
                     http_request(upload_url, method="PUT", data=img_bytes, headers={"Content-Type": "image/jpeg"}, proxy=proxy, timeout=30)
-                    self.after(0, lambda p=path, m=media_id, im=pil_img: self.add_attached_thumbnail(p, m, im))
+
+                    # Bước 3: Đăng ký xác nhận mediaId hoàn chỉnh với PixAI qua externalId
+                    res2 = http_graphql({
+                        "query": """mutation uploadMedia($input: UploadMediaInput!) {
+                            uploadMedia(input: $input) {
+                                uploadUrl
+                                externalId
+                                mediaId
+                            }
+                        }""",
+                        "variables": {"input": {"type": "IMAGE", "provider": "S3", "externalId": ext_id, "imageType": "image/jpeg"}}
+                    }, token, proxy=proxy, timeout=20)
+                    media_id = res2.get("data", {}).get("uploadMedia", {}).get("mediaId")
+
+                    if media_id and media_id != "null":
+                        self.after(0, lambda p=path, m=media_id, im=pil_img: self.add_attached_thumbnail(p, m, im))
+                    else:
+                        raise Exception("Máy chủ PixAI không cấp mediaId hợp lệ")
             except Exception as e:
                 self.after(0, lambda err=str(e): self.log_message(f"Lỗi tải ảnh mẫu lên: {err}", "error"))
 
@@ -1082,6 +1166,7 @@ class PixAiNexusStudio(tk.Tk):
         self.btn_size_auto.pack(side="left", fill="x", expand=True, padx=(2, 0))
 
         self.set_style(self.current_style.get())
+        self.update_live_cost()
         self.log_message(f"Đã thêm ảnh tham chiếu: Media ID {media_id}", "info")
 
     def remove_single_reference_image(self, card_widget, item):
@@ -1094,6 +1179,7 @@ class PixAiNexusStudio(tk.Tk):
         else:
             self.lbl_attach_name.config(text=f"Đã đính kèm {len(self.attached_media_list)} ảnh mẫu")
             self.set_style(self.current_style.get())
+            self.update_live_cost()
 
     def clear_all_reference_images(self):
         for widget in self.frame_thumbs_container.winfo_children():
@@ -1109,6 +1195,7 @@ class PixAiNexusStudio(tk.Tk):
             self.set_size_tier("xl")
 
         self.set_style(self.current_style.get())
+        self.update_live_cost()
         self.log_message("Đã gỡ toàn bộ ảnh mẫu: Tự động phục hồi LoRA Thực Tế.", "info")
 
     # ================= TẠO ẢNH & POLLING KẾT QUẢ =================
@@ -1123,7 +1210,9 @@ class PixAiNexusStudio(tk.Tk):
 
         prof = self.current_profile.get()
         b = self.batch_count.get()
-        cost = MODELS.get(prof, {}).get(f"cost{b}", 100)
+        w, h, _ = self.get_selected_dimensions()
+        has_ref = bool(self.attached_media_list)
+        cost = calculate_task_cost(prof, w, h, b, has_ref)
 
         # Tự động xoay tua tài khoản có đủ credit
         eligible_acc = None
