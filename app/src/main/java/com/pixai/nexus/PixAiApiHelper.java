@@ -19,7 +19,10 @@ import java.util.Map;
 public class PixAiApiHelper {
 
     public interface LogCallback {
-        void log(String message);
+        void log(String message, String color);
+        default void log(String message) {
+            log(message, "#FFFFFF");
+        }
     }
 
     public static final String GRAPHQL_URL = "https://api.pixai.art/graphql";
