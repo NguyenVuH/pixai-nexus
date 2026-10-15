@@ -3,8 +3,8 @@ package com.pixai.nexus;
 import android.app.Dialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.Context;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -13,15 +13,19 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.ResultReceiver;
+import android.provider.MediaStore;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -37,13 +41,14 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import org.json.JSONObject;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
-import java.net.Proxy;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
@@ -60,29 +65,41 @@ public class MainActivity extends AppCompatActivity {
     private final ExecutorService executor = Executors.newFixedThreadPool(4);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    // Navigation & Tabs
+    // Header Views
+    private TextView tvTotalCreditsHeader;
+    private TextView tvActiveAccountHeader;
+
+    // Navigation Buttons
     private Button btnNavStudio, btnNavAccounts, btnNavHistory, btnNavSecurity, btnNavLogs;
-    private ScrollView layoutTabStudio, layoutTabSecurity;
-    private LinearLayout layoutTabAccounts, layoutTabHistory, layoutTabLogs;
+    private ScrollView layoutTabStudio;
+    private LinearLayout layoutTabAccounts;
+    private LinearLayout layoutTabHistory;
+    private ScrollView layoutTabSecurity;
+    private LinearLayout layoutTabLogs;
 
-    // Header Bar
-    private TextView tvHeaderTotalCredits, tvHeaderAccount, tvHeaderProxy;
-
-    // Tab 1: Studio Controls
+    // Tab 1: Studio Views
     private Button btnStyleAnime, btnStyleReal;
     private TextView tvLoraStatus;
+
     private Button btnProfileFlash, btnProfilePro, btnProfileUltra;
-    private Spinner spRatio;
+    private Button btnQualityStandard, btnQualityHigh, btnQualityUltra;
+
+    private FrameLayout flRatioPreviewContainer;
+    private View vRatioPreviewBox;
+    private Spinner spAspectRatio;
     private Button btnBatch1, btnBatch4;
+
     private Button btnPickImage, btnClearImage;
     private TextView tvAttachedImageName;
+
     private EditText etPrompt, etNegativePrompt;
-    private TextView tvCostBadge, tvGenStatus;
+    private TextView tvCostBadge;
     private ProgressBar pbGenProgress;
+    private TextView tvGenStatus;
     private Button btnGenerate;
 
-    // Output & Carousel Controls
-    private LinearLayout layoutResultCard, layoutCarouselBar;
+    private LinearLayout layoutResultCard;
+    private LinearLayout layoutCarouselBar;
     private ImageView ivResultPreview;
     private Button btnZoomImage, btnDownloadImage;
     private Button btnPrevImage, btnNextImage;
@@ -90,29 +107,36 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvResOriginalPrompt, tvResServerPrompt;
     private Button btnCopyOriginalPrompt, btnCopyServerPrompt;
 
-    // Tab 2: Quản Lý Tài Khoản
-    private Button btnBatchClaimDaily, btnBatchClaimFull, btnSyncAllCredits, btnUnblurNsfw, btnAutoReg;
+    // Tab 2: Accounts Views
+    private EditText etNewAccountToken;
+    private Button btnAddAccountDirect;
+    private Button btnSyncAllCredits, btnBatchClaimDaily, btnBatchClaimFull;
+    private Button btnUnblurNsfw, btnClearAllAccounts;
     private ListView lvAccounts;
     private AccountAdapter accountAdapter;
 
-    // Tab 3: Kho Lịch Sử Mã Hóa
+    // Tab 3: History Views
     private ListView lvHistory;
     private Button btnClearHistory;
+    private Button btnLoadMoreHistory;
     private HistoryAdapter historyAdapter;
+    private int historyPageLimit = 20;
 
-    // Tab 4: Bảo Mật & Proxy
+    // Tab 4: Security & Proxy Views
     private EditText etProxyAddress;
-    private CheckBox cbUseProxy, cbFallbackDirect, cbAntiFingerprint;
+    private CheckBox cbUseProxy, cbFallbackDirect, cbAutoRotateAccounts;
     private Button btnSaveSecurity, btnTestProxy;
     private TextView tvProxyTestResult;
 
-    // Tab 5: Nhật Ký Log
+    // Tab 5: Logs Views
+    private ScrollView svLogConsole;
     private TextView tvLogConsole;
     private Button btnClearLogs;
 
     // State Variables
-    private boolean isReal = true;
+    private boolean isReal = false;
     private String currentProfile = "flash"; // flash, pro, ultra
+    private String currentQuality = "standard"; // standard, high, ultra
     private int batchCount = 1;
     private String attachedMediaId = null;
     private int selectedWidth = 1104;
@@ -147,13 +171,14 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         storage = new AccountStorage(this);
-        SecurityShieldManager.initialize(this);
 
         initViews();
+        restoreSavedState();
         setupNavigation();
         setupRatioSpinner();
         setupStyleButtons();
         setupProfileButtons();
+        setupQualityButtons();
         setupBatchButtons();
         setupImagePicker();
         setupGenerateAction();
@@ -165,10 +190,13 @@ public class MainActivity extends AppCompatActivity {
 
         refreshHeader();
         updateCostBadge();
-        logMessage("PixAI Nexus Studio v2.0 đã sẵn sàng.");
+        logMessage("Khởi động PixAI Nexus Studio phiên bản Monochrome Dark thành công.");
     }
 
     private void initViews() {
+        tvTotalCreditsHeader = findViewById(R.id.tvTotalCreditsHeader);
+        tvActiveAccountHeader = findViewById(R.id.tvActiveAccountHeader);
+
         btnNavStudio = findViewById(R.id.btnNavStudio);
         btnNavAccounts = findViewById(R.id.btnNavAccounts);
         btnNavHistory = findViewById(R.id.btnNavHistory);
@@ -181,10 +209,6 @@ public class MainActivity extends AppCompatActivity {
         layoutTabSecurity = findViewById(R.id.layoutTabSecurity);
         layoutTabLogs = findViewById(R.id.layoutTabLogs);
 
-        tvHeaderTotalCredits = findViewById(R.id.tvHeaderTotalCredits);
-        tvHeaderAccount = findViewById(R.id.tvHeaderAccount);
-        tvHeaderProxy = findViewById(R.id.tvHeaderProxy);
-
         btnStyleAnime = findViewById(R.id.btnStyleAnime);
         btnStyleReal = findViewById(R.id.btnStyleReal);
         tvLoraStatus = findViewById(R.id.tvLoraStatus);
@@ -193,7 +217,13 @@ public class MainActivity extends AppCompatActivity {
         btnProfilePro = findViewById(R.id.btnProfilePro);
         btnProfileUltra = findViewById(R.id.btnProfileUltra);
 
-        spRatio = findViewById(R.id.spRatio);
+        btnQualityStandard = findViewById(R.id.btnQualityStandard);
+        btnQualityHigh = findViewById(R.id.btnQualityHigh);
+        btnQualityUltra = findViewById(R.id.btnQualityUltra);
+
+        flRatioPreviewContainer = findViewById(R.id.flRatioPreviewContainer);
+        vRatioPreviewBox = findViewById(R.id.vRatioPreviewBox);
+        spAspectRatio = findViewById(R.id.spAspectRatio);
         btnBatch1 = findViewById(R.id.btnBatch1);
         btnBatch4 = findViewById(R.id.btnBatch4);
 
@@ -222,166 +252,307 @@ public class MainActivity extends AppCompatActivity {
         btnCopyOriginalPrompt = findViewById(R.id.btnCopyOriginalPrompt);
         btnCopyServerPrompt = findViewById(R.id.btnCopyServerPrompt);
 
+        etNewAccountToken = findViewById(R.id.etNewAccountToken);
+        btnAddAccountDirect = findViewById(R.id.btnAddAccountDirect);
+        btnSyncAllCredits = findViewById(R.id.btnSyncAllCredits);
         btnBatchClaimDaily = findViewById(R.id.btnBatchClaimDaily);
         btnBatchClaimFull = findViewById(R.id.btnBatchClaimFull);
-        btnSyncAllCredits = findViewById(R.id.btnSyncAllCredits);
         btnUnblurNsfw = findViewById(R.id.btnUnblurNsfw);
-        btnAutoReg = findViewById(R.id.btnAutoReg);
+        btnClearAllAccounts = findViewById(R.id.btnClearAllAccounts);
         lvAccounts = findViewById(R.id.lvAccounts);
 
         lvHistory = findViewById(R.id.lvHistory);
         btnClearHistory = findViewById(R.id.btnClearHistory);
+        btnLoadMoreHistory = findViewById(R.id.btnLoadMoreHistory);
 
         etProxyAddress = findViewById(R.id.etProxyAddress);
         cbUseProxy = findViewById(R.id.cbUseProxy);
         cbFallbackDirect = findViewById(R.id.cbFallbackDirect);
-        cbAntiFingerprint = findViewById(R.id.cbAntiFingerprint);
+        cbAutoRotateAccounts = findViewById(R.id.cbAutoRotateAccounts);
         btnSaveSecurity = findViewById(R.id.btnSaveSecurity);
         btnTestProxy = findViewById(R.id.btnTestProxy);
         tvProxyTestResult = findViewById(R.id.tvProxyTestResult);
 
+        svLogConsole = findViewById(R.id.svLogConsole);
         tvLogConsole = findViewById(R.id.tvLogConsole);
         btnClearLogs = findViewById(R.id.btnClearLogs);
+    }
 
+    private void restoreSavedState() {
+        // Khôi phục Prompt & Negative
+        etPrompt.setText(storage.getSavedPrompt());
+        etNegativePrompt.setText(storage.getSavedNegativePrompt());
+
+        etPrompt.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                storage.setSavedPrompt(s.toString());
+            }
+        });
+
+        etNegativePrompt.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            @Override public void afterTextChanged(Editable s) {
+                storage.setSavedNegativePrompt(s.toString());
+            }
+        });
+
+        // Khôi phục Style
+        isReal = storage.isSavedReal();
+        updateStyleButtonsDisplay();
+
+        // Khôi phục Profile
+        currentProfile = storage.getSavedProfile();
+        updateProfileButtonsDisplay();
+
+        // Khôi phục Quality
+        currentQuality = storage.getSavedQuality();
+        updateQualityButtonsDisplay();
+
+        // Khôi phục Batch
+        batchCount = storage.getSavedBatch();
+        updateBatchButtonsDisplay();
+
+        // Khôi phục Proxy & Security
         etProxyAddress.setText(storage.getProxyAddress());
         cbUseProxy.setChecked(storage.isUseProxy());
+        cbFallbackDirect.setChecked(storage.isFallbackDirect());
+        cbAutoRotateAccounts.setChecked(storage.isAutoRotateAccounts());
     }
 
     private void setupNavigation() {
-        btnNavStudio.setOnClickListener(v -> switchTab(1));
-        btnNavAccounts.setOnClickListener(v -> switchTab(2));
-        btnNavHistory.setOnClickListener(v -> switchTab(3));
-        btnNavSecurity.setOnClickListener(v -> switchTab(4));
-        btnNavLogs.setOnClickListener(v -> switchTab(5));
+        View.OnClickListener navClick = v -> {
+            layoutTabStudio.setVisibility(v == btnNavStudio ? View.VISIBLE : View.GONE);
+            layoutTabAccounts.setVisibility(v == btnNavAccounts ? View.VISIBLE : View.GONE);
+            layoutTabHistory.setVisibility(v == btnNavHistory ? View.VISIBLE : View.GONE);
+            layoutTabSecurity.setVisibility(v == btnNavSecurity ? View.VISIBLE : View.GONE);
+            layoutTabLogs.setVisibility(v == btnNavLogs ? View.VISIBLE : View.GONE);
 
-        tvHeaderProxy.setOnClickListener(v -> {
-            boolean cur = storage.isUseProxy();
-            storage.setUseProxy(!cur);
-            tvHeaderProxy.setText(!cur ? "Proxy: BẬT" : "Proxy: TẮT");
-            tvHeaderProxy.setTextColor(!cur ? 0xFF38BDF8 : 0xFF8C95A6);
-            cbUseProxy.setChecked(!cur);
-            Toast.makeText(this, !cur ? "Proxy Shield: BẬT" : "Proxy Shield: TẮT", Toast.LENGTH_SHORT).show();
-            logMessage("Proxy Shield đã được: " + (!cur ? "BẬT" : "TẮT"));
-        });
+            btnNavStudio.setBackgroundResource(v == btnNavStudio ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+            btnNavStudio.setTextColor(v == btnNavStudio ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+            btnNavAccounts.setBackgroundResource(v == btnNavAccounts ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+            btnNavAccounts.setTextColor(v == btnNavAccounts ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+            btnNavHistory.setBackgroundResource(v == btnNavHistory ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+            btnNavHistory.setTextColor(v == btnNavHistory ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+            btnNavSecurity.setBackgroundResource(v == btnNavSecurity ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+            btnNavSecurity.setTextColor(v == btnNavSecurity ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+            btnNavLogs.setBackgroundResource(v == btnNavLogs ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+            btnNavLogs.setTextColor(v == btnNavLogs ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+            if (v == btnNavAccounts) refreshAccountsList();
+            if (v == btnNavHistory) refreshHistoryList();
+        };
+
+        btnNavStudio.setOnClickListener(navClick);
+        btnNavAccounts.setOnClickListener(navClick);
+        btnNavHistory.setOnClickListener(navClick);
+        btnNavSecurity.setOnClickListener(navClick);
+        btnNavLogs.setOnClickListener(navClick);
     }
 
-    private void switchTab(int tabIndex) {
-        layoutTabStudio.setVisibility(tabIndex == 1 ? View.VISIBLE : View.GONE);
-        layoutTabAccounts.setVisibility(tabIndex == 2 ? View.VISIBLE : View.GONE);
-        layoutTabHistory.setVisibility(tabIndex == 3 ? View.VISIBLE : View.GONE);
-        layoutTabSecurity.setVisibility(tabIndex == 4 ? View.VISIBLE : View.GONE);
-        layoutTabLogs.setVisibility(tabIndex == 5 ? View.VISIBLE : View.GONE);
+    private void refreshHeader() {
+        long total = storage.getTotalCredits();
+        tvTotalCreditsHeader.setText("Tổng: " + String.format(Locale.US, "%,d", total) + " CR");
 
-        btnNavStudio.setBackgroundResource(tabIndex == 1 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnNavStudio.setTextColor(tabIndex == 1 ? 0xFF38BDF8 : 0xFF8C95A6);
-
-        btnNavAccounts.setBackgroundResource(tabIndex == 2 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnNavAccounts.setTextColor(tabIndex == 2 ? 0xFF38BDF8 : 0xFF8C95A6);
-
-        btnNavHistory.setBackgroundResource(tabIndex == 3 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnNavHistory.setTextColor(tabIndex == 3 ? 0xFF38BDF8 : 0xFF8C95A6);
-
-        btnNavSecurity.setBackgroundResource(tabIndex == 4 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnNavSecurity.setTextColor(tabIndex == 4 ? 0xFF38BDF8 : 0xFF8C95A6);
-
-        btnNavLogs.setBackgroundResource(tabIndex == 5 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
-        btnNavLogs.setTextColor(tabIndex == 5 ? 0xFF38BDF8 : 0xFF8C95A6);
-
-        if (tabIndex == 2) refreshAccountsList();
-        if (tabIndex == 3) refreshHistoryList();
+        AccountModel active = storage.getActiveAccount();
+        if (active != null) {
+            tvActiveAccountHeader.setText("Tài khoản: " + active.getEmail() + " | Số dư: " + String.format(Locale.US, "%,d", active.getCredits()) + " CR");
+        } else {
+            tvActiveAccountHeader.setText("Tài khoản: Chưa kích hoạt | Số dư: 0 CR");
+        }
     }
 
+    // --- TAB 1: STUDIO CONTROLS ---
     private void setupRatioSpinner() {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, RATIO_LABELS);
-        spRatio.setAdapter(adapter);
-        spRatio.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, RATIO_LABELS);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        spAspectRatio.setAdapter(adapter);
+
+        int savedIdx = storage.getSavedRatioIndex();
+        if (savedIdx >= 0 && savedIdx < RATIO_LABELS.length) {
+            spAspectRatio.setSelection(savedIdx);
+            selectedWidth = RATIO_DIMS[savedIdx][0];
+            selectedHeight = RATIO_DIMS[savedIdx][1];
+            updateVisualRatioBox(savedIdx);
+        }
+
+        spAspectRatio.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 selectedWidth = RATIO_DIMS[position][0];
                 selectedHeight = RATIO_DIMS[position][1];
+                storage.setSavedRatioIndex(position);
+                updateVisualRatioBox(position);
             }
             @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> parent) {}
         });
+    }
+
+    private void updateVisualRatioBox(int index) {
+        float density = getResources().getDisplayMetrics().density;
+        int wDp = 20, hDp = 36;
+        switch (index) {
+            case 0: // 9:16
+                wDp = 20; hDp = 36;
+                break;
+            case 1: // 1:1
+                wDp = 30; hDp = 30;
+                break;
+            case 2: // 16:9
+                wDp = 36; hDp = 20;
+                break;
+            case 3: // 3:4
+                wDp = 24; hDp = 32;
+                break;
+            case 4: // Compact
+                wDp = 21; hDp = 36;
+                break;
+        }
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams((int) (wDp * density), (int) (hDp * density));
+        lp.gravity = android.view.Gravity.CENTER;
+        vRatioPreviewBox.setLayoutParams(lp);
     }
 
     private void setupStyleButtons() {
         btnStyleAnime.setOnClickListener(v -> {
             isReal = false;
-            btnStyleAnime.setBackgroundResource(R.drawable.bg_cyber_chip_active);
-            btnStyleAnime.setTextColor(0xFF38BDF8);
-            btnStyleReal.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-            btnStyleReal.setTextColor(0xFF8C95A6);
-            tvLoraStatus.setText("Anime Nguyên Bản (Không dùng LoRA)");
-            tvLoraStatus.setTextColor(0xFF8C95A6);
+            storage.setSavedReal(false);
+            updateStyleButtonsDisplay();
         });
 
         btnStyleReal.setOnClickListener(v -> {
             isReal = true;
-            btnStyleReal.setBackgroundResource(R.drawable.bg_cyber_chip_active);
-            btnStyleReal.setTextColor(0xFF38BDF8);
-            btnStyleAnime.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-            btnStyleAnime.setTextColor(0xFF8C95A6);
-            if (attachedMediaId != null) {
-                tvLoraStatus.setText("Đang đính kèm ảnh mẫu (Tự động bỏ LoRA để tương thích)");
-                tvLoraStatus.setTextColor(0xFFF59E0B);
-            } else {
-                tvLoraStatus.setText("LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)");
-                tvLoraStatus.setTextColor(0xFF10B981);
-            }
+            storage.setSavedReal(true);
+            updateStyleButtonsDisplay();
         });
     }
 
-    private void setupProfileButtons() {
-        btnProfileFlash.setOnClickListener(v -> selectProfile("flash"));
-        btnProfilePro.setOnClickListener(v -> selectProfile("pro"));
-        btnProfileUltra.setOnClickListener(v -> selectProfile("ultra"));
+    private void updateStyleButtonsDisplay() {
+        btnStyleAnime.setBackgroundResource(!isReal ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnStyleAnime.setTextColor(!isReal ? 0xFFFFFFFF : 0xFF9E9E9E);
+        btnStyleReal.setBackgroundResource(isReal ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnStyleReal.setTextColor(isReal ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        if (attachedMediaId != null) {
+            tvLoraStatus.setText("Đang đính kèm ảnh mẫu: Tự động bỏ LoRA để tương thích");
+            tvLoraStatus.setTextColor(0xFFE0E0E0);
+        } else if (isReal) {
+            tvLoraStatus.setText("LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)");
+            tvLoraStatus.setTextColor(0xFF81C784);
+        } else {
+            tvLoraStatus.setText("Chế độ Anime nguyên bản, không dùng LoRA");
+            tvLoraStatus.setTextColor(0xFF9E9E9E);
+        }
     }
 
-    private void selectProfile(String profile) {
-        currentProfile = profile;
-        btnProfileFlash.setBackgroundResource("flash".equals(profile) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_btn_secondary);
-        btnProfileFlash.setTextColor("flash".equals(profile) ? 0xFF38BDF8 : 0xFF8C95A6);
+    private void setupProfileButtons() {
+        btnProfileFlash.setOnClickListener(v -> {
+            currentProfile = "flash";
+            storage.setSavedProfile("flash");
+            updateProfileButtonsDisplay();
+            updateCostBadge();
+        });
 
-        btnProfilePro.setBackgroundResource("pro".equals(profile) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_btn_secondary);
-        btnProfilePro.setTextColor("pro".equals(profile) ? 0xFF38BDF8 : 0xFF8C95A6);
+        btnProfilePro.setOnClickListener(v -> {
+            currentProfile = "pro";
+            storage.setSavedProfile("pro");
+            if (batchCount > 1) {
+                batchCount = 1;
+                storage.setSavedBatch(1);
+                updateBatchButtonsDisplay();
+            }
+            updateProfileButtonsDisplay();
+            updateCostBadge();
+        });
 
-        btnProfileUltra.setBackgroundResource("ultra".equals(profile) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_btn_secondary);
-        btnProfileUltra.setTextColor("ultra".equals(profile) ? 0xFF38BDF8 : 0xFF8C95A6);
+        btnProfileUltra.setOnClickListener(v -> {
+            currentProfile = "ultra";
+            storage.setSavedProfile("ultra");
+            if (batchCount > 1) {
+                batchCount = 1;
+                storage.setSavedBatch(1);
+                updateBatchButtonsDisplay();
+            }
+            updateProfileButtonsDisplay();
+            updateCostBadge();
+        });
+    }
 
-        if (!"flash".equals(profile) && batchCount > 1) {
-            batchCount = 1;
-            btnBatch1.setBackgroundResource(R.drawable.bg_cyber_chip_active);
-            btnBatch1.setTextColor(0xFF38BDF8);
-            btnBatch4.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-            btnBatch4.setTextColor(0xFF8C95A6);
-        }
+    private void updateProfileButtonsDisplay() {
+        btnProfileFlash.setBackgroundResource("flash".equals(currentProfile) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnProfileFlash.setTextColor("flash".equals(currentProfile) ? 0xFFFFFFFF : 0xFF9E9E9E);
 
-        updateCostBadge();
+        btnProfilePro.setBackgroundResource("pro".equals(currentProfile) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnProfilePro.setTextColor("pro".equals(currentProfile) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnProfileUltra.setBackgroundResource("ultra".equals(currentProfile) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnProfileUltra.setTextColor("ultra".equals(currentProfile) ? 0xFFFFFFFF : 0xFF9E9E9E);
+    }
+
+    private void setupQualityButtons() {
+        btnQualityStandard.setOnClickListener(v -> {
+            currentQuality = "standard";
+            storage.setSavedQuality("standard");
+            updateQualityButtonsDisplay();
+        });
+
+        btnQualityHigh.setOnClickListener(v -> {
+            currentQuality = "high";
+            storage.setSavedQuality("high");
+            updateQualityButtonsDisplay();
+        });
+
+        btnQualityUltra.setOnClickListener(v -> {
+            currentQuality = "ultra";
+            storage.setSavedQuality("ultra");
+            updateQualityButtonsDisplay();
+        });
+    }
+
+    private void updateQualityButtonsDisplay() {
+        btnQualityStandard.setBackgroundResource("standard".equals(currentQuality) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnQualityStandard.setTextColor("standard".equals(currentQuality) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnQualityHigh.setBackgroundResource("high".equals(currentQuality) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnQualityHigh.setTextColor("high".equals(currentQuality) ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnQualityUltra.setBackgroundResource("ultra".equals(currentQuality) ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnQualityUltra.setTextColor("ultra".equals(currentQuality) ? 0xFFFFFFFF : 0xFF9E9E9E);
     }
 
     private void setupBatchButtons() {
         btnBatch1.setOnClickListener(v -> {
             batchCount = 1;
-            btnBatch1.setBackgroundResource(R.drawable.bg_cyber_chip_active);
-            btnBatch1.setTextColor(0xFF38BDF8);
-            btnBatch4.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-            btnBatch4.setTextColor(0xFF8C95A6);
+            storage.setSavedBatch(1);
+            updateBatchButtonsDisplay();
             updateCostBadge();
         });
 
         btnBatch4.setOnClickListener(v -> {
             if (!"flash".equalsIgnoreCase(currentProfile)) {
-                Toast.makeText(this, "Số lượng 4 ảnh chỉ hỗ trợ chế độ Flash (Siêu Tốc)!", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Số lượng 4 ảnh chỉ hỗ trợ ở chế độ Flash (Siêu Tốc)!", Toast.LENGTH_SHORT).show();
                 return;
             }
             batchCount = 4;
-            btnBatch4.setBackgroundResource(R.drawable.bg_cyber_chip_active);
-            btnBatch4.setTextColor(0xFF38BDF8);
-            btnBatch1.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-            btnBatch1.setTextColor(0xFF8C95A6);
+            storage.setSavedBatch(4);
+            updateBatchButtonsDisplay();
             updateCostBadge();
         });
+    }
+
+    private void updateBatchButtonsDisplay() {
+        btnBatch1.setBackgroundResource(batchCount == 1 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnBatch1.setTextColor(batchCount == 1 ? 0xFFFFFFFF : 0xFF9E9E9E);
+
+        btnBatch4.setBackgroundResource(batchCount == 4 ? R.drawable.bg_cyber_chip_active : R.drawable.bg_cyber_chip_normal);
+        btnBatch4.setTextColor(batchCount == 4 ? 0xFFFFFFFF : 0xFF9E9E9E);
     }
 
     private void updateCostBadge() {
@@ -412,18 +583,15 @@ public class MainActivity extends AppCompatActivity {
             attachedMediaId = null;
             btnClearImage.setVisibility(View.GONE);
             tvAttachedImageName.setText("Chưa đính kèm ảnh (Tạo từ văn bản)");
-            tvAttachedImageName.setTextColor(0xFF8C95A6);
-            if (isReal) {
-                tvLoraStatus.setText("LoRA Tsubaki 3 Realism v1 đã kích hoạt (Trọng số 0.70)");
-                tvLoraStatus.setTextColor(0xFF10B981);
-                logMessage("Đã gỡ ảnh mẫu: Tự động phục hồi LoRA Thực Tế (0.70).");
-            }
+            tvAttachedImageName.setTextColor(0xFF9E9E9E);
+            updateStyleButtonsDisplay();
+            logMessage("Đã gỡ ảnh mẫu: Tự động phục hồi LoRA Thực Tế.");
         });
     }
 
     private void uploadContextImage(Uri uri) {
-        tvAttachedImageName.setText("Đang tải ảnh mẫu lên PixAI Cloud qua Proxy...");
-        tvAttachedImageName.setTextColor(0xFFF59E0B);
+        tvAttachedImageName.setText("Đang tải ảnh mẫu lên PixAI S3 Cloud...");
+        tvAttachedImageName.setTextColor(0xFFE0E0E0);
 
         executor.execute(() -> {
             try {
@@ -446,17 +614,16 @@ public class MainActivity extends AppCompatActivity {
                 mainHandler.post(() -> {
                     attachedMediaId = mediaId;
                     tvAttachedImageName.setText("Đã đính kèm ảnh (ID: " + mediaId + ")");
-                    tvAttachedImageName.setTextColor(0xFF10B981);
+                    tvAttachedImageName.setTextColor(0xFF81C784);
                     btnClearImage.setVisibility(View.VISIBLE);
-                    tvLoraStatus.setText("Đang đính kèm ảnh mẫu (Tự động bỏ LoRA để tương thích)");
-                    tvLoraStatus.setTextColor(0xFFF59E0B);
-                    logMessage("Tải ảnh mẫu thành công! Media ID: " + mediaId);
+                    updateStyleButtonsDisplay();
+                    logMessage("Tải ảnh mẫu lên PixAI thành công. Media ID: " + mediaId);
                     Toast.makeText(this, "Đính kèm ảnh mẫu thành công!", Toast.LENGTH_SHORT).show();
                 });
             } catch (Exception e) {
                 mainHandler.post(() -> {
                     tvAttachedImageName.setText("Lỗi tải ảnh: " + e.getMessage());
-                    tvAttachedImageName.setTextColor(0xFFEF4444);
+                    tvAttachedImageName.setTextColor(0xFFE57373);
                     logMessage("Lỗi tải ảnh mẫu: " + e.getMessage());
                 });
             }
@@ -542,110 +709,140 @@ public class MainActivity extends AppCompatActivity {
         // TỰ ĐỘNG XOAY TUA TÀI KHOẢN NẾU THIẾU CREDIT
         AccountModel account = storage.findEligibleAccount(requiredCost);
         if (account == null) {
-            Toast.makeText(this, "Tất cả tài khoản đều không đủ " + requiredCost + " Credits! Hãy nhận thưởng hoặc reg acc mới.", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Tất cả tài khoản đều không đủ " + requiredCost + " Credits! Hãy nhận thưởng hoặc thêm tài khoản mới.", Toast.LENGTH_LONG).show();
             return;
         }
 
         AccountModel currentActive = storage.getActiveAccount();
-        if (currentActive == null || currentActive.getCredits() < requiredCost) {
+        if (currentActive == null || !currentActive.getEmail().equalsIgnoreCase(account.getEmail())) {
             storage.setActiveEmail(account.getEmail());
             refreshHeader();
-            logMessage("Tự động xoay tua sang tài khoản: " + account.getEmail() + " (" + account.getCredits() + " CR)");
-            Toast.makeText(this, "Tự động đổi tài khoản: " + account.getEmail(), Toast.LENGTH_SHORT).show();
+            logMessage("Tự động chuyển sang tài khoản đủ số dư: " + account.getEmail() + " (" + account.getCredits() + " CR)");
         }
 
         isGenerating = true;
         btnGenerate.setEnabled(false);
         pbGenProgress.setVisibility(View.VISIBLE);
-        tvGenStatus.setText("Bước 1/4: Đang kiểm tra phiên tài khoản & mở khóa 18+...");
-        tvGenStatus.setTextColor(0xFF38BDF8);
+        tvGenStatus.setText("Bước 1/4: Đang chuẩn bị phiên làm việc & Mở khóa 18+ (NSFW)...");
+        tvGenStatus.setTextColor(0xFFFFFFFF);
 
-        String token = account.getToken();
-        String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
         String neg = etNegativePrompt.getText().toString().trim();
+        String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
 
-        executor.execute(() -> {
-            try {
-                // Tự động tắt làm mờ ảnh nhạy cảm & xác nhận 18+
-                PixAiApiHelper.unblurNsfw(token, proxy);
+        executor.execute(() -> executeGenerationWithRetry(account, prompt, neg, proxy, requiredCost));
+    }
 
-                mainHandler.post(() -> tvGenStatus.setText("Bước 2/4: Đang gửi tác vụ khởi tạo tới PixAI Engine (" + currentProfile.toUpperCase() + ")..."));
+    private void executeGenerationWithRetry(AccountModel account, String prompt, String neg, String proxy, long requiredCost) {
+        try {
+            // Tự động tắt làm mờ ảnh nhạy cảm & xác nhận 18+
+            PixAiApiHelper.unblurNsfw(account.getToken(), proxy);
 
-                PixAiApiHelper.TaskResult res = PixAiApiHelper.createAndPollGenerationTask(
-                        token,
-                        currentProfile,
-                        isReal,
-                        selectedWidth,
-                        selectedHeight,
-                        batchCount,
-                        prompt,
-                        neg,
-                        attachedMediaId,
-                        proxy
-                );
+            mainHandler.post(() -> tvGenStatus.setText("Bước 2/4: Đang gửi lệnh khởi tạo tới GPU PixAI (" + currentProfile.toUpperCase() + ")..."));
 
-                mainHandler.post(() -> {
-                    isGenerating = false;
-                    btnGenerate.setEnabled(true);
-                    pbGenProgress.setVisibility(View.GONE);
+            PixAiApiHelper.TaskResult res = PixAiApiHelper.createAndPollGenerationTask(
+                    account.getToken(),
+                    currentProfile,
+                    isReal,
+                    currentQuality,
+                    selectedWidth,
+                    selectedHeight,
+                    batchCount,
+                    prompt,
+                    neg,
+                    attachedMediaId,
+                    proxy,
+                    (msg, sec) -> mainHandler.post(() -> tvGenStatus.setText("Bước 3/4: " + msg))
+            );
 
-                    if (res.success && !res.imageUrls.isEmpty()) {
-                        tvGenStatus.setText("Bước 4/4: Khởi tạo thành công! (Task ID: " + res.taskId + ")");
-                        tvGenStatus.setTextColor(0xFF10B981);
+            // Xử lý khi tài khoản bị báo hết Credit từ Server
+            if (res.insufficientBalance) {
+                mainHandler.post(() -> logMessage("Tài khoản " + account.getEmail() + " hết Credit trên server! Tự động xoay sang tài khoản khác..."));
+                account.setCredits(0);
+                storage.addAccount(account);
 
-                        // Trừ credit nội bộ
-                        account.setCredits(Math.max(0, account.getCredits() - requiredCost));
-                        storage.addAccount(account);
+                AccountModel nextAcc = storage.findEligibleAccount(requiredCost);
+                if (nextAcc != null && !nextAcc.getEmail().equalsIgnoreCase(account.getEmail())) {
+                    storage.setActiveEmail(nextAcc.getEmail());
+                    mainHandler.post(() -> {
                         refreshHeader();
-
-                        lastOriginalPrompt = res.originalPrompt;
-                        lastServerPrompt = res.serverPrompt;
-                        currentResultImages.clear();
-                        currentResultImages.addAll(res.imageUrls);
-                        currentCarouselIdx = 0;
-
-                        // Lưu vào Kho Lịch Sử Được Mã Hóa
-                        for (String url : res.imageUrls) {
-                            HistoryItem hist = new HistoryItem(
-                                    url,
-                                    res.originalPrompt,
-                                    res.serverPrompt,
-                                    "Tsubaki 3",
-                                    currentProfile,
-                                    isReal,
-                                    res.seed,
-                                    selectedWidth,
-                                    selectedHeight
-                            );
-                            storage.addHistoryItem(hist);
-                        }
-
-                        // Hiển thị kết quả & Carousel
-                        layoutResultCard.setVisibility(View.VISIBLE);
-                        tvResOriginalPrompt.setText(res.originalPrompt);
-                        tvResServerPrompt.setText(res.serverPrompt);
-                        updateCarouselDisplay();
-
-                        logMessage("Khởi tạo thành công " + res.imageUrls.size() + " ảnh! Đã lưu vào kho lịch sử mã hóa.");
-                        Toast.makeText(this, "Tạo ảnh thành công!", Toast.LENGTH_SHORT).show();
-                    } else {
-                        tvGenStatus.setText("Thất bại: " + res.errorMessage);
-                        tvGenStatus.setTextColor(0xFFEF4444);
-                        logMessage("Lỗi tạo ảnh: " + res.errorMessage);
-                        Toast.makeText(this, "Lỗi tạo ảnh: " + res.errorMessage, Toast.LENGTH_LONG).show();
-                    }
-                });
-            } catch (Exception e) {
-                mainHandler.post(() -> {
-                    isGenerating = false;
-                    btnGenerate.setEnabled(true);
-                    pbGenProgress.setVisibility(View.GONE);
-                    tvGenStatus.setText("Lỗi: " + e.getMessage());
-                    tvGenStatus.setTextColor(0xFFEF4444);
-                    logMessage("Lỗi ngoại lệ: " + e.getMessage());
-                });
+                        tvGenStatus.setText("Đang tự động đổi sang: " + nextAcc.getEmail() + "...");
+                    });
+                    executeGenerationWithRetry(nextAcc, prompt, neg, proxy, requiredCost);
+                    return;
+                } else {
+                    mainHandler.post(() -> {
+                        isGenerating = false;
+                        btnGenerate.setEnabled(true);
+                        pbGenProgress.setVisibility(View.GONE);
+                        tvGenStatus.setText("Thất bại: Toàn bộ tài khoản đã cạn kiệt Credit!");
+                        tvGenStatus.setTextColor(0xFFE57373);
+                        Toast.makeText(this, "Tất cả tài khoản đều đã hết Credit!", Toast.LENGTH_LONG).show();
+                    });
+                    return;
+                }
             }
-        });
+
+            mainHandler.post(() -> {
+                isGenerating = false;
+                btnGenerate.setEnabled(true);
+                pbGenProgress.setVisibility(View.GONE);
+
+                if (res.success && !res.imageUrls.isEmpty()) {
+                    tvGenStatus.setText("Bước 4/4: Khởi tạo hoàn tất 100%! Tác vụ thành công.");
+                    tvGenStatus.setTextColor(0xFF81C784);
+
+                    // Trừ credit nội bộ
+                    account.setCredits(Math.max(0, account.getCredits() - requiredCost));
+                    storage.addAccount(account);
+                    refreshHeader();
+
+                    lastOriginalPrompt = res.originalPrompt;
+                    lastServerPrompt = res.serverPrompt;
+                    currentResultImages.clear();
+                    currentResultImages.addAll(res.imageUrls);
+                    currentCarouselIdx = 0;
+
+                    // Lưu vào Kho Lịch Sử Được Mã Hóa
+                    for (String url : res.imageUrls) {
+                        HistoryItem hist = new HistoryItem(
+                                url,
+                                res.originalPrompt,
+                                res.serverPrompt,
+                                "Tsubaki 3",
+                                currentProfile,
+                                isReal,
+                                res.seed,
+                                selectedWidth,
+                                selectedHeight
+                        );
+                        storage.addHistoryItem(hist);
+                    }
+
+                    // Hiển thị kết quả & Carousel
+                    layoutResultCard.setVisibility(View.VISIBLE);
+                    tvResOriginalPrompt.setText(res.originalPrompt);
+                    tvResServerPrompt.setText(res.serverPrompt);
+                    updateCarouselDisplay();
+
+                    logMessage("Khởi tạo thành công " + res.imageUrls.size() + " ảnh! Đã lưu vào kho lịch sử mã hóa.");
+                    Toast.makeText(this, "Tạo ảnh thành công!", Toast.LENGTH_SHORT).show();
+                } else {
+                    tvGenStatus.setText("Thất bại: " + res.errorMessage);
+                    tvGenStatus.setTextColor(0xFFE57373);
+                    logMessage("Lỗi tạo ảnh: " + res.errorMessage);
+                    Toast.makeText(this, "Lỗi: " + res.errorMessage, Toast.LENGTH_LONG).show();
+                }
+            });
+        } catch (Exception e) {
+            mainHandler.post(() -> {
+                isGenerating = false;
+                btnGenerate.setEnabled(true);
+                pbGenProgress.setVisibility(View.GONE);
+                tvGenStatus.setText("Lỗi Exception: " + e.getMessage());
+                tvGenStatus.setTextColor(0xFFE57373);
+                logMessage("Lỗi ngoại lệ: " + e.getMessage());
+            });
+        }
     }
 
     private void loadImagePreview(String urlString) {
@@ -669,51 +866,55 @@ public class MainActivity extends AppCompatActivity {
     private void openFullscreenZoom(String imageUrl) {
         Dialog dialog = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        dialog.setContentView(R.layout.activity_main); // Dùng trực tiếp hoặc tạo view
-        // Tạo view nhanh phóng to
+
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
-        container.setBackgroundColor(0xFF0B0D12);
+        container.setBackgroundColor(0xFF121212);
+        container.setPadding(16, 16, 16, 16);
+
+        // Header controls
+        LinearLayout topBar = new LinearLayout(this);
+        topBar.setOrientation(LinearLayout.HORIZONTAL);
+        topBar.setPadding(0, 0, 0, 16);
+
+        Button btnClose = new Button(this);
+        btnClose.setText("Đóng");
+        btnClose.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
+        btnClose.setTextColor(0xFFFFFFFF);
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+        topBar.addView(btnClose);
+
+        Button btnSave = new Button(this);
+        btnSave.setText("Lưu Vào Máy");
+        btnSave.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
+        btnSave.setTextColor(0xFF81C784);
+        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        btnLp.setMarginStart(24);
+        btnSave.setLayoutParams(btnLp);
+        btnSave.setOnClickListener(v -> downloadImageToGallery(imageUrl));
+        topBar.addView(btnSave);
+
+        container.addView(topBar);
 
         ImageView iv = new ImageView(this);
         iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1.0f);
         container.addView(iv, lp);
 
-        LinearLayout bBar = new LinearLayout(this);
-        bBar.setOrientation(LinearLayout.HORIZONTAL);
-        bBar.setPadding(20, 20, 20, 20);
-        bBar.setBackgroundColor(0xFF161A22);
-
-        Button btnClose = new Button(this);
-        btnClose.setText("Đóng");
-        btnClose.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-        btnClose.setTextColor(0xFFE2E8F0);
-        btnClose.setOnClickListener(v -> dialog.dismiss());
-        bBar.addView(btnClose);
-
-        Button btnDl = new Button(this);
-        btnDl.setText("Tải Ảnh Về Máy");
-        btnDl.setBackgroundResource(R.drawable.bg_cyber_btn_primary);
-        btnDl.setTextColor(0xFFFFFFFF);
-        LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        btnLp.setMarginStart(20);
-        bBar.addView(btnDl, btnLp);
-        btnDl.setOnClickListener(v -> downloadImageToGallery(imageUrl));
-
-        container.addView(bBar);
         dialog.setContentView(container);
+        dialog.show();
 
         executor.execute(() -> {
             try {
-                URL url = new URL(imageUrl);
-                InputStream is = url.openStream();
+                URL u = new URL(imageUrl);
+                HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                InputStream is = conn.getInputStream();
                 Bitmap bm = BitmapFactory.decodeStream(is);
-                mainHandler.post(() -> iv.setImageBitmap(bm));
+                mainHandler.post(() -> {
+                    if (bm != null) iv.setImageBitmap(bm);
+                });
             } catch (Exception ignored) {}
         });
-
-        dialog.show();
     }
 
     private void downloadImageToGallery(String imageUrl) {
@@ -721,251 +922,264 @@ public class MainActivity extends AppCompatActivity {
         executor.execute(() -> {
             try {
                 URL url = new URL(imageUrl);
-                InputStream is = url.openStream();
-                Bitmap bm = BitmapFactory.decodeStream(is);
-                File picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-                File outDir = new File(picturesDir, "PixAI_Nexus");
-                outDir.mkdirs();
-                String fname = "PixAI_" + System.currentTimeMillis() + ".jpg";
-                File outFile = new File(outDir, fname);
-                FileOutputStream fos = new FileOutputStream(outFile);
-                bm.compress(Bitmap.CompressFormat.JPEG, 95, fos);
-                fos.close();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                InputStream is = conn.getInputStream();
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int r;
+                while ((r = is.read(buf)) != -1) bos.write(buf, 0, r);
+                byte[] bytes = bos.toByteArray();
+
+                String filename = "PixAI_Nexus_" + System.currentTimeMillis() + ".png";
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.Images.Media.DISPLAY_NAME, filename);
+                    values.put(MediaStore.Images.Media.MIME_TYPE, "image/png");
+                    values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PixAI_Nexus");
+
+                    Uri uri = getContentResolver().insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+                    if (uri != null) {
+                        OutputStream os = getContentResolver().openOutputStream(uri);
+                        if (os != null) {
+                            os.write(bytes);
+                            os.close();
+                        }
+                    }
+                } else {
+                    File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "PixAI_Nexus");
+                    if (!dir.exists()) dir.mkdirs();
+                    File f = new File(dir, filename);
+                    FileOutputStream fos = new FileOutputStream(f);
+                    fos.write(bytes);
+                    fos.close();
+                }
 
                 mainHandler.post(() -> {
-                    Toast.makeText(this, "Đã lưu ảnh vào Thư Viện: Pictures/PixAI_Nexus/" + fname, Toast.LENGTH_LONG).show();
-                    logMessage("Đã lưu ảnh thành công: " + outFile.getAbsolutePath());
+                    logMessage("Đã tải ảnh về thư viện Pictures/PixAI_Nexus: " + filename);
+                    Toast.makeText(this, "Đã lưu ảnh vào Pictures/PixAI_Nexus!", Toast.LENGTH_SHORT).show();
                 });
             } catch (Exception e) {
-                mainHandler.post(() -> Toast.makeText(this, "Lỗi tải ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                mainHandler.post(() -> {
+                    logMessage("Lỗi lưu ảnh: " + e.getMessage());
+                    Toast.makeText(this, "Lỗi lưu ảnh: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }
 
-    private void refreshHeader() {
-        long totalCredits = 0;
-        List<AccountModel> list = storage.getAccounts();
-        for (AccountModel a : list) {
-            totalCredits += a.getCredits();
-        }
-        tvHeaderTotalCredits.setText("Tổng: " + String.format(Locale.US, "%,d", totalCredits) + " CR");
-
-        AccountModel active = storage.getActiveAccount();
-        if (active != null) {
-            String shortEmail = active.getEmail();
-            if (shortEmail.length() > 20) shortEmail = shortEmail.substring(0, 18) + "...";
-            tvHeaderAccount.setText(shortEmail + " (" + String.format(Locale.US, "%,d", active.getCredits()) + " CR)");
-        } else {
-            tvHeaderAccount.setText("Chưa có tài khoản");
-        }
-
-        boolean pOn = storage.isUseProxy();
-        tvHeaderProxy.setText(pOn ? "Proxy: BẬT" : "Proxy: TẮT");
-        tvHeaderProxy.setTextColor(pOn ? 0xFF38BDF8 : 0xFF8C95A6);
-    }
-
     // --- TAB 2: QUẢN LÝ TÀI KHOẢN ---
     private void setupAccountManagementActions() {
-        btnBatchClaimDaily.setOnClickListener(v -> {
-            btnBatchClaimDaily.setEnabled(false);
-            Toast.makeText(this, "Đang nhận Daily (+10K) cho toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
+        accountAdapter = new AccountAdapter(this, new ArrayList<>());
+        lvAccounts.setAdapter(accountAdapter);
+
+        // Thêm tài khoản thủ công hoặc danh sách
+        btnAddAccountDirect.setOnClickListener(v -> {
+            String input = etNewAccountToken.getText().toString().trim();
+            if (input.isEmpty()) {
+                Toast.makeText(this, "Vui lòng nhập hoặc dán token!", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String[] lines = input.split("\n");
+            Toast.makeText(this, "Đang kiểm tra và thêm " + lines.length + " tài khoản...", Toast.LENGTH_SHORT).show();
+
             executor.execute(() -> {
-                List<AccountModel> list = storage.getAccounts();
+                int added = 0;
                 String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
-                for (AccountModel acc : list) {
-                    if (acc.getToken() != null && !acc.getToken().isEmpty()) {
-                        PixAiApiHelper.claimDaily(acc.getToken(), proxy);
-                        long cur = PixAiApiHelper.getQuota(acc.getToken(), proxy);
-                        if (cur >= 0) acc.setCredits(cur);
-                    }
+
+                for (String line : lines) {
+                    String t = line.trim();
+                    if (t.startsWith("Bearer ")) t = t.substring(7).trim();
+                    if (t.length() < 20) continue;
+
+                    long quota = PixAiApiHelper.getQuota(t, proxy);
+                    String email = "pixai_acc_" + (System.currentTimeMillis() % 100000) + "@nexus.com";
+                    AccountModel acc = new AccountModel(email, t, quota);
+                    storage.addAccount(acc);
+                    added++;
                 }
-                storage.saveAccounts(list);
+
+                final int count = added;
                 mainHandler.post(() -> {
-                    btnBatchClaimDaily.setEnabled(true);
+                    etNewAccountToken.setText("");
                     refreshAccountsList();
                     refreshHeader();
-                    logMessage("Hoàn tất nhận Daily (+10K) hàng loạt!");
-                    Toast.makeText(this, "Đã nhận Daily hàng loạt thành công!", Toast.LENGTH_SHORT).show();
+                    logMessage("Đã thêm thành công " + count + " tài khoản vào danh sách.");
+                    Toast.makeText(this, "Đã thêm " + count + " tài khoản thành công!", Toast.LENGTH_SHORT).show();
                 });
             });
         });
 
-        btnBatchClaimFull.setOnClickListener(v -> {
-            btnBatchClaimFull.setEnabled(false);
-            Toast.makeText(this, "Đang nhận Full Thưởng (80K) cho toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
-            executor.execute(() -> {
-                List<AccountModel> list = storage.getAccounts();
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
-                for (AccountModel acc : list) {
-                    if (acc.getToken() != null && !acc.getToken().isEmpty()) {
-                        PixAiApiHelper.claimAllQuests(acc.getToken(), proxy);
-                        long cur = PixAiApiHelper.getQuota(acc.getToken(), proxy);
-                        if (cur >= 0) acc.setCredits(cur);
-                    }
-                }
-                storage.saveAccounts(list);
-                mainHandler.post(() -> {
-                    btnBatchClaimFull.setEnabled(true);
-                    refreshAccountsList();
-                    refreshHeader();
-                    logMessage("Hoàn tất nhận Full Thưởng (+80K) hàng loạt!");
-                    Toast.makeText(this, "Đã nhận Full Thưởng hàng loạt thành công!", Toast.LENGTH_SHORT).show();
-                });
-            });
-        });
-
+        // Đồng bộ số dư toàn bộ tài khoản
         btnSyncAllCredits.setOnClickListener(v -> {
-            btnSyncAllCredits.setEnabled(false);
-            Toast.makeText(this, "Đang đồng bộ số dư Credits từ Server PixAI...", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Đang đồng bộ số dư toàn bộ tài khoản từ PixAI Server...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
                 String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
-                for (AccountModel acc : list) {
-                    if (acc.getToken() != null && !acc.getToken().isEmpty()) {
-                        long cur = PixAiApiHelper.getQuota(acc.getToken(), proxy);
-                        if (cur >= 0) acc.setCredits(cur);
+                for (AccountModel a : list) {
+                    if (a.getToken() != null && !a.getToken().isEmpty()) {
+                        long q = PixAiApiHelper.getQuota(a.getToken(), proxy);
+                        a.setCredits(q);
                     }
                 }
                 storage.saveAccounts(list);
                 mainHandler.post(() -> {
-                    btnSyncAllCredits.setEnabled(true);
                     refreshAccountsList();
                     refreshHeader();
-                    logMessage("Đồng bộ số dư tài khoản thành công!");
+                    logMessage("Đồng bộ số dư toàn bộ tài khoản hoàn tất.");
                     Toast.makeText(this, "Đồng bộ số dư thành công!", Toast.LENGTH_SHORT).show();
                 });
             });
         });
 
-        btnUnblurNsfw.setOnClickListener(v -> {
-            btnUnblurNsfw.setEnabled(false);
-            Toast.makeText(this, "Đang xác nhận 18+ và tắt làm mờ nhạy cảm cho toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
+        // Nhận thưởng Daily toàn bộ
+        btnBatchClaimDaily.setOnClickListener(v -> {
+            Toast.makeText(this, "Đang nhận thưởng Daily cho toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
                 String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
-                for (AccountModel acc : list) {
-                    if (acc.getToken() != null && !acc.getToken().isEmpty()) {
-                        PixAiApiHelper.unblurNsfw(acc.getToken(), proxy);
+                int succ = 0;
+                for (AccountModel a : list) {
+                    if (a.getToken() != null && !a.getToken().isEmpty()) {
+                        if (PixAiApiHelper.claimDailyCredits(a.getToken(), proxy)) succ++;
+                        long q = PixAiApiHelper.getQuota(a.getToken(), proxy);
+                        a.setCredits(q);
                     }
                 }
+                storage.saveAccounts(list);
+                final int totalSucc = succ;
                 mainHandler.post(() -> {
-                    btnUnblurNsfw.setEnabled(true);
-                    logMessage("Đã hoàn tất xác nhận 18+ và gỡ blur NSFW cho toàn bộ tài khoản!");
-                    Toast.makeText(this, "Đã mở khóa 18+ & tắt mờ nhạy cảm toàn bộ tài khoản!", Toast.LENGTH_SHORT).show();
+                    refreshAccountsList();
+                    refreshHeader();
+                    logMessage("Nhận Daily hoàn tất: Thành công " + totalSucc + " tài khoản.");
+                    Toast.makeText(this, "Nhận Daily hoàn tất cho " + totalSucc + " tài khoản!", Toast.LENGTH_SHORT).show();
                 });
             });
         });
 
-        btnAutoReg.setOnClickListener(v -> {
-            Toast.makeText(this, "Đang khởi chạy tiến trình Reg Acc mới ngầm qua Proxy Shield...", Toast.LENGTH_LONG).show();
-            String rnd = String.valueOf(System.currentTimeMillis()).substring(7);
-            String newEmail = "pixai_nexus_" + rnd + "@temporarymail.net";
-            String newPass = "PixAi@123456";
-
-            Intent intent = new Intent(this, HeadlessRegService.class);
-            intent.putExtra("email", newEmail);
-            intent.putExtra("password", newPass);
-            intent.putExtra("useProxy", storage.isUseProxy());
-            intent.putExtra("proxyAddr", storage.getProxyAddress());
-            intent.putExtra("receiver", new ResultReceiver(mainHandler) {
-                @Override
-                protected void onReceiveResult(int resultCode, Bundle resultData) {
-                    if (resultCode == HeadlessRegService.CODE_SUCCESS) {
-                        String token = resultData.getString("token");
-                        AccountModel newAcc = new AccountModel(newEmail, newPass, token, 80000);
-                        storage.addAccount(newAcc);
-                        storage.setActiveEmail(newEmail);
-                        refreshAccountsList();
-                        refreshHeader();
-                        logMessage("Tạo tài khoản mới thành công: " + newEmail + " (+80,000 CR)!");
-                        Toast.makeText(MainActivity.this, "Tạo tài khoản mới thành công: " + newEmail + " (+80,000 CR)!", Toast.LENGTH_LONG).show();
-                    } else if (resultCode == HeadlessRegService.CODE_ERROR) {
-                        String err = resultData.getString("error");
-                        logMessage("Tạo tài khoản thất bại: " + err);
-                        Toast.makeText(MainActivity.this, "Tạo tài khoản thất bại: " + err, Toast.LENGTH_LONG).show();
-                    } else if (resultCode == HeadlessRegService.CODE_PROGRESS) {
-                        String msg = resultData.getString("message");
-                        tvGenStatus.setText("Reg Acc: " + msg);
+        // Nhận All Thưởng Quests toàn bộ
+        btnBatchClaimFull.setOnClickListener(v -> {
+            Toast.makeText(this, "Đang nhận toàn bộ Social & Visit Quests...", Toast.LENGTH_SHORT).show();
+            executor.execute(() -> {
+                List<AccountModel> list = storage.getAccounts();
+                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                int totalQ = 0;
+                for (AccountModel a : list) {
+                    if (a.getToken() != null && !a.getToken().isEmpty()) {
+                        totalQ += PixAiApiHelper.claimSocialAndVisitQuests(a.getToken(), proxy);
+                        long q = PixAiApiHelper.getQuota(a.getToken(), proxy);
+                        a.setCredits(q);
                     }
                 }
+                storage.saveAccounts(list);
+                final int count = totalQ;
+                mainHandler.post(() -> {
+                    refreshAccountsList();
+                    refreshHeader();
+                    logMessage("Nhận toàn bộ nhiệm vụ hoàn tất: " + count + " lượt thành công.");
+                    Toast.makeText(this, "Nhận thưởng hoàn tất: " + count + " nhiệm vụ!", Toast.LENGTH_SHORT).show();
+                });
             });
+        });
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent);
-            } else {
-                startService(intent);
-            }
+        // Mở khóa 18+ toàn bộ
+        btnUnblurNsfw.setOnClickListener(v -> {
+            Toast.makeText(this, "Đang tự động mở khóa 18+ và bỏ làm mờ nhạy cảm...", Toast.LENGTH_SHORT).show();
+            executor.execute(() -> {
+                List<AccountModel> list = storage.getAccounts();
+                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                for (AccountModel a : list) {
+                    if (a.getToken() != null && !a.getToken().isEmpty()) {
+                        PixAiApiHelper.unblurNsfw(a.getToken(), proxy);
+                    }
+                }
+                mainHandler.post(() -> {
+                    logMessage("Đã gửi yêu cầu mở khóa 18+ và bỏ làm mờ cho toàn bộ tài khoản.");
+                    Toast.makeText(this, "Mở khóa 18+ toàn bộ tài khoản thành công!", Toast.LENGTH_SHORT).show();
+                });
+            });
+        });
+
+        // Xóa toàn bộ tài khoản
+        btnClearAllAccounts.setOnClickListener(v -> {
+            storage.clearAllAccounts();
+            refreshAccountsList();
+            refreshHeader();
+            logMessage("Đã xóa toàn bộ tài khoản khỏi ứng dụng.");
+            Toast.makeText(this, "Đã xóa toàn bộ tài khoản!", Toast.LENGTH_SHORT).show();
         });
     }
 
     private void refreshAccountsList() {
-        List<AccountModel> list = storage.getAccounts();
-        if (accountAdapter == null) {
-            accountAdapter = new AccountAdapter(this, list);
-            lvAccounts.setAdapter(accountAdapter);
-        } else {
+        if (accountAdapter != null) {
             accountAdapter.clear();
-            accountAdapter.addAll(list);
+            accountAdapter.addAll(storage.getAccounts());
             accountAdapter.notifyDataSetChanged();
         }
     }
 
     // --- TAB 3: KHO LỊCH SỬ MÃ HÓA ---
     private void setupHistoryActions() {
+        historyAdapter = new HistoryAdapter(this, new ArrayList<>());
+        lvHistory.setAdapter(historyAdapter);
+
         btnClearHistory.setOnClickListener(v -> {
             storage.clearHistory();
             refreshHistoryList();
-            Toast.makeText(this, "Đã xóa toàn bộ kho lịch sử mã hóa!", Toast.LENGTH_SHORT).show();
-            logMessage("Đã xóa toàn bộ kho lịch sử mã hóa.");
+            logMessage("Đã xóa toàn bộ kho lịch sử mã hóa và cache ảnh.");
+            Toast.makeText(this, "Đã xóa toàn bộ lịch sử!", Toast.LENGTH_SHORT).show();
+        });
+
+        btnLoadMoreHistory.setOnClickListener(v -> {
+            historyPageLimit += 20;
+            refreshHistoryList();
+            Toast.makeText(this, "Đã mở rộng hiển thị " + historyPageLimit + " phiên lịch sử.", Toast.LENGTH_SHORT).show();
         });
     }
 
     private void refreshHistoryList() {
-        List<HistoryItem> list = storage.getHistory();
-        if (historyAdapter == null) {
-            historyAdapter = new HistoryAdapter(this, list);
-            lvHistory.setAdapter(historyAdapter);
-        } else {
+        if (historyAdapter != null) {
             historyAdapter.clear();
-            historyAdapter.addAll(list);
+            List<HistoryItem> all = storage.getHistory();
+            int limit = Math.min(all.size(), historyPageLimit);
+            historyAdapter.addAll(all.subList(0, limit));
             historyAdapter.notifyDataSetChanged();
+
+            btnLoadMoreHistory.setVisibility(all.size() > historyPageLimit ? View.VISIBLE : View.GONE);
         }
     }
 
-    // --- TAB 4: BẢO MẬT & PROXY ---
+    // --- TAB 4: BẢO MẬT & PROXY SHIELD ---
     private void setupSecurityTabActions() {
         btnSaveSecurity.setOnClickListener(v -> {
             String addr = etProxyAddress.getText().toString().trim();
             boolean useP = cbUseProxy.isChecked();
+            boolean fb = cbFallbackDirect.isChecked();
+            boolean autoR = cbAutoRotateAccounts.isChecked();
+
             storage.setProxyAddress(addr);
             storage.setUseProxy(useP);
+            storage.setFallbackDirect(fb);
+            storage.setAutoRotateAccounts(autoR);
+
             refreshHeader();
             Toast.makeText(this, "Đã lưu cấu hình Bảo Mật & Proxy Shield!", Toast.LENGTH_SHORT).show();
-            logMessage("Đã cập nhật cấu hình Proxy: " + addr + " (Trạng thái: " + (useP ? "BẬT" : "TẮT") + ")");
+            logMessage("Đã cập nhật cấu hình: Proxy=" + addr + " (Shield=" + (useP ? "BẬT" : "TẮT") + ", Fallback=" + (fb ? "BẬT" : "TẮT") + ")");
         });
 
         btnTestProxy.setOnClickListener(v -> {
             String proxy = etProxyAddress.getText().toString().trim();
             tvProxyTestResult.setText("Đang kiểm tra kết nối Proxy...");
-            tvProxyTestResult.setTextColor(0xFF38BDF8);
+            tvProxyTestResult.setTextColor(0xFFFFFFFF);
 
             executor.execute(() -> {
                 long t0 = System.currentTimeMillis();
                 try {
                     URL url = new URL("https://ipwho.is/");
-                    HttpURLConnection conn;
-                    if (!proxy.isEmpty()) {
-                        String clean = proxy.replace("http://", "").replace("https://", "");
-                        String[] parts = clean.split("@");
-                        String hostPort = parts.length > 1 ? parts[1] : parts[0];
-                        String[] hp = hostPort.split(":");
-                        Proxy p = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(hp[0], Integer.parseInt(hp[1])));
-                        conn = (HttpURLConnection) url.openConnection(p);
-                    } else {
-                        conn = (HttpURLConnection) url.openConnection();
-                    }
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(12000);
+                    HttpURLConnection conn = PixAiApiHelper.openConnectionWithProxy(url, proxy);
+                    conn.setConnectTimeout(8000);
+                    conn.setReadTimeout(10000);
                     InputStream is = conn.getInputStream();
                     ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     byte[] buf = new byte[4096];
@@ -978,14 +1192,14 @@ public class MainActivity extends AppCompatActivity {
                     String country = json.optString("country", "Unknown");
 
                     mainHandler.post(() -> {
-                        tvProxyTestResult.setText("KẾT NỐI THÀNH CÔNG! IP: " + ip + " | Vùng: " + country + " | Ping: " + ping + "ms");
-                        tvProxyTestResult.setTextColor(0xFF10B981);
-                        logMessage("Kiểm tra Proxy thành công: IP " + ip + " (" + country + ") - " + ping + "ms");
+                        tvProxyTestResult.setText("KẾT NỐI THÀNH CÔNG: IP " + ip + " | Quốc gia: " + country + " | Ping: " + ping + "ms");
+                        tvProxyTestResult.setTextColor(0xFF81C784);
+                        logMessage("Kiểm tra Proxy thành công: IP " + ip + " (" + country + ") - Ping " + ping + "ms");
                     });
                 } catch (Exception e) {
                     mainHandler.post(() -> {
                         tvProxyTestResult.setText("KẾT NỐI THẤT BẠI: " + e.getMessage());
-                        tvProxyTestResult.setTextColor(0xFFEF4444);
+                        tvProxyTestResult.setTextColor(0xFFE57373);
                         logMessage("Kiểm tra Proxy thất bại: " + e.getMessage());
                     });
                 }
@@ -1002,12 +1216,15 @@ public class MainActivity extends AppCompatActivity {
         String t = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
         mainHandler.post(() -> {
             if (tvLogConsole != null) {
-                tvLogConsole.append("[" + t + "] " + msg + "\n");
+                tvLogConsole.append(t + " " + msg + "\n");
+                if (svLogConsole != null) {
+                    svLogConsole.post(() -> svLogConsole.fullScroll(View.FOCUS_DOWN));
+                }
             }
         });
     }
 
-    // --- ADAPTERS ---
+    // --- ADAPTER CHO TÀI KHOẢN ---
     private class AccountAdapter extends ArrayAdapter<AccountModel> {
         public AccountAdapter(Context ctx, List<AccountModel> items) {
             super(ctx, 0, items);
@@ -1016,24 +1233,24 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             if (convertView == null) {
-                convertView = LayoutInflater.from(getContext()).inflate(android.R.layout.simple_list_item_2, parent, false);
-                convertView.setBackgroundResource(R.drawable.bg_cyber_card);
-                convertView.setPadding(16, 12, 16, 12);
+                convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_account, parent, false);
             }
             AccountModel item = getItem(position);
-            TextView text1 = convertView.findViewById(android.R.id.text1);
-            TextView text2 = convertView.findViewById(android.R.id.text2);
+            TextView tvEmail = convertView.findViewById(R.id.tvAccEmail);
+            TextView tvCredits = convertView.findViewById(R.id.tvAccCredits);
+            TextView tvStatus = convertView.findViewById(R.id.tvAccStatus);
+            Button btnDelete = convertView.findViewById(R.id.btnDeleteAccount);
 
             AccountModel active = storage.getActiveAccount();
             boolean isActive = active != null && active.getEmail().equalsIgnoreCase(item.getEmail());
 
-            text1.setText((isActive ? "ĐANG DÙNG - " : "") + item.getEmail());
-            text1.setTextColor(isActive ? 0xFF38BDF8 : 0xFFE2E8F0);
-            text1.setTextSize(11);
+            tvEmail.setText((isActive ? "ĐANG DÙNG: " : "") + item.getEmail());
+            tvEmail.setTextColor(isActive ? 0xFFFFFFFF : 0xFFE0E0E0);
 
-            text2.setText("Số dư: " + String.format(Locale.US, "%,d", item.getCredits()) + " Credits | Token: " + (item.getToken() != null && item.getToken().length() > 15 ? item.getToken().substring(0, 15) + "..." : "Trống"));
-            text2.setTextColor(0xFF10B981);
-            text2.setTextSize(9);
+            tvCredits.setText("Số dư: " + String.format(Locale.US, "%,d", item.getCredits()) + " Credits");
+            tvCredits.setTextColor(item.getCredits() > 0 ? 0xFF81C784 : 0xFF9E9E9E);
+
+            tvStatus.setText(isActive ? "Tài khoản đang được kích hoạt làm việc" : "Chạm để chọn làm tài khoản chính");
 
             convertView.setOnClickListener(v -> {
                 storage.setActiveEmail(item.getEmail());
@@ -1042,13 +1259,19 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(getContext(), "Đã chọn tài khoản: " + item.getEmail(), Toast.LENGTH_SHORT).show();
             });
 
+            btnDelete.setOnClickListener(v -> {
+                storage.deleteAccount(item.getEmail());
+                refreshAccountsList();
+                refreshHeader();
+                Toast.makeText(getContext(), "Đã xóa tài khoản!", Toast.LENGTH_SHORT).show();
+            });
+
             return convertView;
         }
     }
 
+    // --- ADAPTER CHO KHO LỊCH SỬ MÃ HÓA CÓ THUMBNAIL ---
     private class HistoryAdapter extends ArrayAdapter<HistoryItem> {
-        private final SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
-
         public HistoryAdapter(Context ctx, List<HistoryItem> items) {
             super(ctx, 0, items);
         }
@@ -1056,36 +1279,48 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             if (convertView == null) {
-                convertView = LayoutInflater.from(getContext()).inflate(android.R.layout.simple_list_item_2, parent, false);
-                convertView.setBackgroundResource(R.drawable.bg_cyber_card);
-                convertView.setPadding(16, 12, 16, 12);
+                convertView = LayoutInflater.from(getContext()).inflate(R.layout.item_history, parent, false);
             }
             HistoryItem item = getItem(position);
-            TextView text1 = convertView.findViewById(android.R.id.text1);
-            TextView text2 = convertView.findViewById(android.R.id.text2);
+            ImageView ivThumb = convertView.findViewById(R.id.ivHistoryThumb);
+            TextView tvMeta = convertView.findViewById(R.id.tvHistoryMeta);
+            TextView tvPrompt = convertView.findViewById(R.id.tvHistoryPrompt);
+            TextView tvDate = convertView.findViewById(R.id.tvHistoryDate);
 
-            text1.setText((item.isReal() ? "Thực Tế" : "Anime") + " - " + item.getProfile().toUpperCase() + " | " + item.getOriginalPrompt());
-            text1.setTextColor(0xFF38BDF8);
-            text1.setTextSize(10);
+            tvMeta.setText(item.getModelName() + " " + item.getProfile().toUpperCase() + " - " + item.getWidth() + "x" + item.getHeight());
+            tvPrompt.setText(item.getOriginalPrompt());
+            tvDate.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date(item.getTimestamp())));
 
-            text2.setText("Thời gian: " + sdf.format(new Date(item.getTimestamp())) + " | Kích thước: " + item.getWidth() + "x" + item.getHeight() + "\nServer Sửa: " + item.getServerPrompt());
-            text2.setTextColor(0xFF8C95A6);
-            text2.setTextSize(9);
+            // Load decrypted thumbnail từ memory/cache
+            Bitmap cached = storage.getDecryptedImageCache(item.getId());
+            if (cached != null) {
+                ivThumb.setImageBitmap(cached);
+            } else {
+                ivThumb.setImageResource(android.R.drawable.ic_menu_gallery);
+                executor.execute(() -> {
+                    try {
+                        URL u = new URL(item.getImageUrl());
+                        HttpURLConnection conn = (HttpURLConnection) u.openConnection();
+                        InputStream is = conn.getInputStream();
+                        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                        byte[] buf = new byte[8192];
+                        int r;
+                        while ((r = is.read(buf)) != -1) bos.write(buf, 0, r);
+                        byte[] rawBytes = bos.toByteArray();
 
-            convertView.setOnClickListener(v -> {
-                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                ClipData cd = ClipData.newPlainText("Server Prompt", item.getServerPrompt());
-                cm.setPrimaryClip(cd);
-                Toast.makeText(getContext(), "Đã sao chép Prompt do server sửa!", Toast.LENGTH_SHORT).show();
-            });
+                        storage.saveEncryptedImageCache(item.getId(), rawBytes);
+                        Bitmap bm = BitmapFactory.decodeByteArray(rawBytes, 0, rawBytes.length);
+
+                        mainHandler.post(() -> {
+                            if (bm != null) ivThumb.setImageBitmap(bm);
+                        });
+                    } catch (Exception ignored) {}
+                });
+            }
+
+            convertView.setOnClickListener(v -> openFullscreenZoom(item.getImageUrl()));
 
             return convertView;
         }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        executor.shutdown();
     }
 }

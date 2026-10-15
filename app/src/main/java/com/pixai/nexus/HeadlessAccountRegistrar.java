@@ -52,7 +52,7 @@ public class HeadlessAccountRegistrar {
 
                 cleanup();
 
-                callback.onProgress("[*] Khởi động phiên PixAI độc lập (:registrar)...", "#94A3B8");
+                callback.onProgress("Khởi động phiên PixAI độc lập (:registrar)...", "#94A3B8");
 
                 // Xóa sạch dữ liệu lưu trữ của phiên đăng ký trước trong tiến trình độc lập :registrar
                 // (Hoàn toàn không chạm tới WebView chính của ứng dụng)
@@ -237,7 +237,7 @@ public class HeadlessAccountRegistrar {
     private void startOuterAutomationLoop(String email, String password, String pixaiHookJs, RegistrationCallback callback) {
         if (stepLoopRunning || isFinished) return;
         stepLoopRunning = true;
-        callback.onProgress("[*] Bắt đầu tự động hóa đăng ký PixAI...", "#38BDF8");
+        callback.onProgress("Bắt đầu tự động hóa đăng ký PixAI...", "#38BDF8");
 
         findAndClickEmailButton(email, password, pixaiHookJs, 0, callback);
     }
@@ -547,7 +547,7 @@ public class HeadlessAccountRegistrar {
 
                 cleanup();
 
-                callback.onProgress("[*] Khởi động phiên Webshare ngầm độc lập (:registrar)...", "#94A3B8");
+                callback.onProgress("Khởi động phiên Webshare ngầm độc lập (:registrar)...", "#94A3B8");
 
                 headlessWebView = new WebView(context);
                 // Cấp phát kích thước khung hình thật 1080x2400 để Google Invisible reCAPTCHA nhận diện màn hình chuẩn

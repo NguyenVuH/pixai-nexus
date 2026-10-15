@@ -249,7 +249,7 @@ class PixAiNexusStudio(tk.Tk):
         self.active_account = None
         if os.path.exists(ACCOUNTS_FILE):
             try:
-                with open(ACCOUNTS_FILE, "r", encoding="utf-8") as f:
+                with open(ACCOUNTS_FILE, "r", encoding="utf-8-sig") as f:
                     self.accounts = json.load(f)
                 if self.accounts:
                     self.active_account = self.accounts[0]
@@ -765,7 +765,7 @@ class PixAiNexusStudio(tk.Tk):
                 "inferenceProfile": profile,
                 "width": width,
                 "height": height,
-                "priority": 1000,
+                "priority": 0,
                 "prompts": prompt,
                 "seed": "",
                 "batchSize": batch,

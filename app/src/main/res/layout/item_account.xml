@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_cyber_card"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvAccEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="user@domain.com"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvAccCredits"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="3dp"
+            android:text="Số dư: 0 Credits"
+            android:textColor="#81C784"
+            android:textSize="11sp" />
+
+        <TextView
+            android:id="@+id/tvAccStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="Chạm để kích hoạt làm tài khoản chính"
+            android:textColor="#9E9E9E"
+            android:textSize="10sp" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/btnDeleteAccount"
+        android:layout_width="wrap_content"
+        android:layout_height="32dp"
+        android:layout_marginStart="8dp"
+        android:background="@drawable/bg_cyber_btn_secondary"
+        android:minWidth="0dp"
+        android:paddingHorizontal="10dp"
+        android:text="Xóa"
+        android:textAllCaps="false"
+        android:textColor="#E57373"
+        android:textSize="11sp" />
+</LinearLayout>
