@@ -15,11 +15,18 @@ import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class PixAiApiHelper {
+
+    public interface LogCallback {
+        void log(String message, String color);
+        default void log(String message) {
+            log(message, "#FFFFFF");
+        }
+    }
 
     public interface ProgressCallback {
         void onProgress(String message, int elapsedSeconds);
@@ -510,5 +517,63 @@ public class PixAiApiHelper {
         } else {
             throw new Exception("Lỗi tải ảnh lên S3: HTTP " + s3Code);
         }
+    }
+
+    public static boolean claimDaily(String token, String proxyStr) {
+        return claimDailyCredits(token, proxyStr);
+    }
+
+    public static void claimAllQuests(String token, String proxyStr) {
+        claimDailyCredits(token, proxyStr);
+        claimSocialAndVisitQuests(token, proxyStr);
+    }
+
+    public static String httpRequestWithHeaders(String urlStr, String method, Map<String, String> headers, byte[] body, String proxyStr, int timeoutSec) {
+        try {
+            URL url = new URL(urlStr);
+            HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
+            conn.setRequestMethod(method != null ? method : "GET");
+            conn.setConnectTimeout(timeoutSec > 0 ? timeoutSec * 1000 : 15000);
+            conn.setReadTimeout(timeoutSec > 0 ? timeoutSec * 1000 : 15000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    conn.setRequestProperty(entry.getKey(), entry.getValue());
+                }
+            }
+
+            if (body != null && body.length > 0) {
+                conn.setDoOutput(true);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(body);
+                }
+            }
+
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) return "";
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    sb.append(line).append("\n");
+                }
+                return sb.toString().trim();
+            }
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public static String executeSocketHttpRequest(String urlStr, String method, Map<String, String> headers, byte[] body, SecurityShieldManager.ParsedProxy proxy, int timeoutSec) {
+        String proxyStr = proxy != null ? proxy.toNormalizedUrl() : null;
+        return httpRequestWithHeaders(urlStr, method, headers, body, proxyStr, timeoutSec);
+    }
+
+    public static List<String> fetchShareFreeProxyPool(LogCallback log) {
+        List<String> list = new ArrayList<>();
+        list.add("http://p.webshare.io:80");
+        return list;
     }
 }

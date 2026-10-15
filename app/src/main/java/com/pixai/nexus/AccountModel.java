@@ -12,6 +12,10 @@ public class AccountModel {
     private long createdAt;
     private String proxy;
 
+    public AccountModel(String email, String token, long credits) {
+        this(email, "", token, credits);
+    }
+
     public AccountModel(String email, String password, String token, long credits) {
         this.id = String.valueOf(System.currentTimeMillis()) + "_" + (int)(Math.random() * 1000);
         this.email = email;
