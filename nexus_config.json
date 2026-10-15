@@ -1,0 +1,7 @@
+{
+  "use_proxy": true,
+  "proxy_address": "http://p.webshare.io:80",
+  "auto_fallback_direct": true,
+  "kill_switch": false,
+  "anti_fingerprint": true
+}

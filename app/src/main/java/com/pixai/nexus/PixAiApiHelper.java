@@ -47,6 +47,18 @@ public class PixAiApiHelper {
     }
 
     public static JSONObject sendGraphQL(JSONObject payload, String token, String proxyStr) throws Exception {
+        try {
+            return sendGraphQLInternal(payload, token, proxyStr);
+        } catch (Exception e) {
+            if (proxyStr != null && !proxyStr.trim().isEmpty()) {
+                // Tự động Fallback sang Direct an toàn nếu proxy lỗi để không làm mất tác vụ
+                return sendGraphQLInternal(payload, token, null);
+            }
+            throw e;
+        }
+    }
+
+    private static JSONObject sendGraphQLInternal(JSONObject payload, String token, String proxyStr) throws Exception {
         URL url = new URL(GRAPHQL_URL);
         HttpURLConnection conn;
 
@@ -91,8 +103,26 @@ public class PixAiApiHelper {
                     sb.append(line);
                 }
             }
-        }
         return new JSONObject(sb.toString().trim());
+    }
+
+    public static void unblurNsfw(String token, String proxyStr) {
+        try {
+            JSONObject q = new JSONObject();
+            q.put("query", "mutation updateUserSettings($input: UpdateUserSettingsInput!) {\n" +
+                    "  updateUserSettings(input: $input) {\n" +
+                    "    isNsfw\n" +
+                    "    showNsfw\n" +
+                    "  }\n" +
+                    "}");
+            JSONObject vars = new JSONObject();
+            JSONObject inp = new JSONObject();
+            inp.put("isNsfw", true);
+            inp.put("showNsfw", true);
+            vars.put("input", inp);
+            q.put("variables", vars);
+            sendGraphQL(q, token, proxyStr);
+        } catch (Exception ignored) {}
     }
 
     public static TaskResult createAndPollGenerationTask(
@@ -223,8 +253,8 @@ public class PixAiApiHelper {
             pollPayload.put("variables", pollVars);
 
             long start = System.currentTimeMillis();
-            while (System.currentTimeMillis() - start < 100000) {
-                Thread.sleep(3000);
+            while (System.currentTimeMillis() - start < 300000) {
+                Thread.sleep(2500);
                 JSONObject pollRes = sendGraphQL(pollPayload, token, proxyStr);
                 JSONObject tNode = pollRes.optJSONObject("data");
                 if (tNode != null) tNode = tNode.optJSONObject("task");

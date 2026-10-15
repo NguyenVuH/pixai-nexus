@@ -130,19 +130,31 @@ public class AccountStorage {
         return null;
     }
 
+    private static final String HISTORY_FILE = "nexus_history.enc";
+    private static final byte[] CIPHER_KEY = "PixAi_Nexus_Security_Master_Key_2026_Secure".getBytes(StandardCharsets.UTF_8);
+
+    private static byte[] cipherBytes(byte[] data) {
+        byte[] out = new byte[data.length];
+        for (int i = 0; i < data.length; i++) {
+            out[i] = (byte) (data[i] ^ CIPHER_KEY[i % CIPHER_KEY.length]);
+        }
+        return out;
+    }
+
     // --- HISTORY MANAGEMENT ---
     public synchronized List<HistoryItem> getHistory() {
         List<HistoryItem> list = new ArrayList<>();
         File file = new File(context.getFilesDir(), HISTORY_FILE);
         if (!file.exists()) return list;
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), StandardCharsets.UTF_8))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line);
-            }
-            JSONArray arr = new JSONArray(sb.toString().trim());
+        try {
+            FileInputStream fis = new FileInputStream(file);
+            byte[] encData = new byte[(int) file.length()];
+            fis.read(encData);
+            fis.close();
+            byte[] rawData = cipherBytes(encData);
+            String jsonStr = new String(rawData, StandardCharsets.UTF_8);
+            JSONArray arr = new JSONArray(jsonStr.trim());
             for (int i = 0; i < arr.length(); i++) {
                 list.add(new HistoryItem(arr.getJSONObject(i)));
             }
@@ -153,7 +165,6 @@ public class AccountStorage {
     public synchronized void addHistoryItem(HistoryItem item) {
         List<HistoryItem> list = getHistory();
         list.add(0, item);
-        // Keep max 200 items
         if (list.size() > 200) {
             list = list.subList(0, 200);
         }
@@ -163,8 +174,14 @@ public class AccountStorage {
             for (HistoryItem h : list) {
                 arr.put(h.toJsonObject());
             }
-            fos.write(arr.toString(2).getBytes(StandardCharsets.UTF_8));
+            byte[] raw = arr.toString().getBytes(StandardCharsets.UTF_8);
+            fos.write(cipherBytes(raw));
         } catch (Exception ignored) {}
+    }
+
+    public synchronized void clearHistory() {
+        File file = new File(context.getFilesDir(), HISTORY_FILE);
+        if (file.exists()) file.delete();
     }
 
     // --- PROXY & PREFERENCES ---
