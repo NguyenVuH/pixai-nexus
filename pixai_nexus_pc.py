@@ -833,6 +833,9 @@ class PixAiNexusStudio(tk.Tk):
         btn_clear_hist = tk.Button(top_bar, text="Xóa Toàn Bộ Lịch Sử", bg="#2A1616", fg=self.c_danger, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9), command=self.on_clear_history)
         btn_clear_hist.pack(side="right", padx=(0, 8))
 
+        btn_delete_selected_hist = tk.Button(top_bar, text="Xóa Phiên Đã Chọn", bg="#2A1616", fg=self.c_danger, relief="solid", bd=1, padx=10, pady=4, font=("Segoe UI", 9), command=self.on_delete_selected_history)
+        btn_delete_selected_hist.pack(side="right", padx=(0, 8))
+
         # View khóa PIN
         self.frame_hist_locked = tk.Frame(self.container_hist, bg=self.c_card, bd=1, relief="solid", padx=24, pady=32)
         tk.Label(self.frame_hist_locked, text="Kho Lịch Sử Đã Được Khóa Bảo Mật", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 12, "bold")).pack(pady=(0, 8))
@@ -867,6 +870,7 @@ class PixAiNexusStudio(tk.Tk):
         hist_scroll.pack(side="right", fill="y")
 
         self.hist_tree.bind("<Double-1>", self.on_history_double_click)
+        self.hist_tree.bind("<Delete>", lambda e: self.on_delete_selected_history())
 
         self.check_history_lock_view()
 
@@ -1676,6 +1680,18 @@ class PixAiNexusStudio(tk.Tk):
         btn_close = tk.Button(top_bar, text="✕ Đóng", bg="#242424", fg="#FFFFFF", relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 9), command=top.destroy)
         btn_close.pack(side="right")
 
+        def _delete_this_history():
+            if messagebox.askyesno("Xác nhận xóa phiên", "Bạn có chắc muốn xóa phiên này khỏi lịch sử?", parent=top):
+                t_id = hist_item.get("taskId") or hist_item.get("id")
+                self.history = [x for x in self.history if (x.get("taskId") != t_id and x.get("id") != t_id)]
+                save_encrypted_history(self.history)
+                self.refresh_history_table()
+                self.log_message(f"Đã xóa phiên #{t_id} khỏi lịch sử.", "info")
+                top.destroy()
+
+        btn_del_this = tk.Button(top_bar, text="Xóa Phiên Này", bg="#2A1616", fg=self.c_danger, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 9), command=_delete_this_history)
+        btn_del_this.pack(side="right", padx=(0, 8))
+
         btn_load_main = tk.Button(top_bar, text="Nạp Vào Studio", bg="#242424", fg=self.c_success, relief="solid", bd=1, padx=10, pady=3, font=("Segoe UI", 9, "bold"), command=lambda: [self.apply_task_to_preview(hist_item), top.destroy()])
         btn_load_main.pack(side="right", padx=(0, 8))
 
@@ -2039,6 +2055,22 @@ class PixAiNexusStudio(tk.Tk):
                 urls = [h["imageUrl"]]
             if urls:
                 self.open_history_detail_window(h, urls)
+
+    def on_delete_selected_history(self):
+        sel = self.hist_tree.selection()
+        if not sel:
+            messagebox.showinfo("Thông báo", "Vui lòng chọn một phiên trong danh sách để xóa.")
+            return
+        idx = self.hist_tree.index(sel[0])
+        if 0 <= idx < len(self.history):
+            h = self.history[idx]
+            task_id = h.get("taskId") or h.get("id", "N/A")
+            short_id = task_id[-8:] if len(task_id) > 8 else task_id
+            if messagebox.askyesno("Xác nhận xóa phiên", f"Bạn có chắc muốn xóa phiên #{short_id} khỏi lịch sử?"):
+                self.history.pop(idx)
+                save_encrypted_history(self.history)
+                self.refresh_history_table()
+                self.log_message(f"Đã xóa phiên #{task_id} khỏi lịch sử.", "info")
 
     def on_clear_history(self):
         if messagebox.askyesno("Xác nhận", "Bạn có chắc chắn muốn xóa toàn bộ kho lịch sử mã hóa?"):

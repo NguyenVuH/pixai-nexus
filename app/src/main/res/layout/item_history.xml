@@ -65,10 +65,21 @@
         </LinearLayout>
 
         <ImageView
+            android:id="@+id/btnHistoryDelete"
+            android:layout_width="26dp"
+            android:layout_height="26dp"
+            android:layout_marginStart="4dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="4dp"
+            android:src="@drawable/ic_delete" />
+
+        <ImageView
             android:id="@+id/ivExpandIndicator"
             android:layout_width="24dp"
             android:layout_height="24dp"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="2dp"
             android:src="@drawable/ic_expand" />
     </LinearLayout>
 
@@ -178,6 +189,33 @@
                 android:layout_height="wrap_content"
                 android:text="Sao Chép Prompt Tối Ưu"
                 android:textColor="#81C784"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Nút Xóa Phiên Này Khỏi Lịch Sử -->
+        <LinearLayout
+            android:id="@+id/btnHistoryDeleteExpanded"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:background="@drawable/bg_cyber_chip_normal"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingVertical="7dp">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginEnd="6dp"
+                android:src="@drawable/ic_delete" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Xóa Phiên Này Khỏi Lịch Sử"
+                android:textColor="#EF4444"
                 android:textSize="11sp" />
         </LinearLayout>
     </LinearLayout>

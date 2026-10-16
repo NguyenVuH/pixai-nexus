@@ -1082,6 +1082,29 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        // Xóa phiên khỏi hàng đợi tiến trình
+        View btnDeleteTask = card.findViewById(R.id.btnTaskDeleteSession);
+        View btnDeleteTaskExp = card.findViewById(R.id.btnTaskDeleteExpanded);
+        View.OnClickListener deleteTaskClick = v -> {
+            new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Xác Nhận Xóa")
+                .setMessage("Bạn có chắc muốn xóa phiên này khỏi danh sách tiến trình?")
+                .setPositiveButton("Xóa Phiên", (dialog, which) -> {
+                    containerActiveTasks.removeView(card);
+                    if (containerActiveTasks.getChildCount() == 0) {
+                        layoutActiveTasksQueue.setVisibility(View.GONE);
+                    }
+                    storage.deleteHistoryItem(item.getId());
+                    refreshHistoryList();
+                    logMessage("Đã xóa phiên #" + tidShort + ".");
+                    Toast.makeText(MainActivity.this, "Đã xóa phiên!", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Hủy", null)
+                .show();
+        };
+        if (btnDeleteTask != null) btnDeleteTask.setOnClickListener(deleteTaskClick);
+        if (btnDeleteTaskExp != null) btnDeleteTaskExp.setOnClickListener(deleteTaskClick);
+
         // Thêm vào đầu container để tiến trình mới tạo luôn hiện ở TRÊN CÙNG
         containerActiveTasks.addView(card, 0);
 
@@ -1853,10 +1876,17 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnClearHistory.setOnClickListener(v -> {
-            storage.clearHistory();
-            refreshHistoryList();
-            logMessage("Đã xóa toàn bộ kho lịch sử mã hóa và cache ảnh.");
-            Toast.makeText(this, "Đã xóa toàn bộ lịch sử!", Toast.LENGTH_SHORT).show();
+            new AlertDialog.Builder(this)
+                .setTitle("Xác Nhận Xóa Toàn Bộ")
+                .setMessage("Bạn có chắc chắn muốn xóa TOÀN BỘ kho lịch sử tạo ảnh và bộ nhớ cache?")
+                .setPositiveButton("Xóa Toàn Bộ", (dialog, which) -> {
+                    storage.clearHistory();
+                    refreshHistoryList();
+                    logMessage("Đã xóa toàn bộ kho lịch sử mã hóa và cache ảnh.");
+                    Toast.makeText(this, "Đã xóa toàn bộ lịch sử!", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Hủy", null)
+                .show();
         });
 
         btnLoadMoreHistory.setOnClickListener(v -> {
@@ -2262,9 +2292,34 @@ public class MainActivity extends AppCompatActivity {
                         Toast.makeText(getContext(), "Đã sao chép Prompt Máy Chủ Tối Ưu!", Toast.LENGTH_SHORT).show();
                     });
                 }
+
+                View btnDeleteHistExp = convertView.findViewById(R.id.btnHistoryDeleteExpanded);
+                if (btnDeleteHistExp != null) {
+                    btnDeleteHistExp.setOnClickListener(v -> confirmDeleteHistoryItem(item));
+                }
+            }
+
+            View btnDeleteHist = convertView.findViewById(R.id.btnHistoryDelete);
+            if (btnDeleteHist != null) {
+                btnDeleteHist.setOnClickListener(v -> confirmDeleteHistoryItem(item));
             }
 
             return convertView;
+        }
+
+        private void confirmDeleteHistoryItem(HistoryItem item) {
+            new AlertDialog.Builder(MainActivity.this)
+                .setTitle("Xác Nhận Xóa Phiên")
+                .setMessage("Bạn có chắc chắn muốn xóa phiên tạo ảnh này khỏi lịch sử?")
+                .setPositiveButton("Xóa Phiên", (dialog, which) -> {
+                    storage.deleteHistoryItem(item.getId());
+                    remove(item);
+                    notifyDataSetChanged();
+                    logMessage("Đã xóa phiên #" + (item.getTaskId() != null ? item.getTaskId() : item.getId()) + " khỏi lịch sử.");
+                    Toast.makeText(MainActivity.this, "Đã xóa phiên thành công!", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Hủy", null)
+                .show();
         }
     }
 }

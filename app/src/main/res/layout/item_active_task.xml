@@ -70,6 +70,24 @@
                 android:layout_height="14dp"
                 android:src="@drawable/ic_expand" />
         </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btnTaskDeleteSession"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_cyber_chip_normal"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:paddingHorizontal="7dp"
+            android:paddingVertical="4dp">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_delete" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Prompt Preview (Always visible in collapsed mode) -->
@@ -192,6 +210,33 @@
                 android:layout_height="wrap_content"
                 android:text="Sao Chép Prompt Tối Ưu"
                 android:textColor="#81C784"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <!-- Nút Xóa Phiên Này -->
+        <LinearLayout
+            android:id="@+id/btnTaskDeleteExpanded"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_cyber_chip_normal"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:paddingVertical="6dp">
+
+            <ImageView
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginEnd="6dp"
+                android:src="@drawable/ic_delete" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Xóa Phiên Này"
+                android:textColor="#EF4444"
                 android:textSize="11sp" />
         </LinearLayout>
 

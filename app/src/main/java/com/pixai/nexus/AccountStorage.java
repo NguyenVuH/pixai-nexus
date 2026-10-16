@@ -357,6 +357,24 @@ public class AccountStorage {
         saveHistory(list);
     }
 
+    public synchronized boolean deleteHistoryItem(String id) {
+        if (id == null) return false;
+        List<HistoryItem> list = getHistory();
+        boolean found = false;
+        for (int i = 0; i < list.size(); i++) {
+            HistoryItem cur = list.get(i);
+            if (id.equals(cur.getId()) || id.equals(cur.getTaskId())) {
+                list.remove(i);
+                found = true;
+                break;
+            }
+        }
+        if (found) {
+            saveHistory(list);
+        }
+        return found;
+    }
+
     public synchronized List<HistoryItem> getPendingHistoryItems() {
         List<HistoryItem> pending = new ArrayList<>();
         List<HistoryItem> all = getHistory();
