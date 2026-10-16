@@ -1760,41 +1760,112 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginBottom="6dp"
-                        android:text="Địa Chỉ Proxy (HTTP / SOCKS5)"
+                        android:layout_marginBottom="4dp"
+                        android:text="Cấu Hình Proxy &amp; Kho Proxy Xoay Vòng"
                         android:textColor="#FFFFFF"
                         android:textSize="12sp"
                         android:textStyle="bold" />
 
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="6dp"
+                        android:text="Dán lệnh curl Webshare, link download, API Token hoặc danh sách proxy (ip:port:user:pass):"
+                        android:textColor="#9E9E9E"
+                        android:textSize="10sp" />
+
                     <EditText
                         android:id="@+id/etProxyAddress"
                         android:layout_width="match_parent"
-                        android:layout_height="44dp"
+                        android:layout_height="wrap_content"
+                        android:minHeight="88dp"
                         android:background="@drawable/bg_cyber_input"
-                        android:hint="http://user:pass@host:port hoặc socks5://host:port"
-                        android:paddingHorizontal="10dp"
+                        android:gravity="top"
+                        android:hint="Ví dụ:\ncurl -s 'https://proxy.webshare.io/api/v2/proxy/list/download/...'\nhoặc:\n198.23.239.134:6540:user:pass\nhoặc Token Webshare"
+                        android:padding="10dp"
+                        android:scrollbars="vertical"
                         android:textColor="#FFFFFF"
-                        android:textColorHint="#757575"
-                        android:textSize="12sp" />
+                        android:textColorHint="#666666"
+                        android:textSize="11sp" />
+
+                    <!-- Thanh trạng thái kho Proxy -->
+                    <TextView
+                        android:id="@+id/tvProxyPoolStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Kho Proxy: 0 proxy khả dụng"
+                        android:textColor="#81C784"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <!-- Nút nạp / tự lấy từ Webshare -->
+                    <LinearLayout
+                        android:id="@+id/btnImportWebshare"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_cyber_chip_normal"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:gravity="center"
+                        android:orientation="horizontal"
+                        android:paddingVertical="9dp">
+
+                        <ImageView
+                            android:layout_width="15dp"
+                            android:layout_height="15dp"
+                            android:layout_marginEnd="6dp"
+                            android:src="@drawable/ic_security_shield" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Nạp Proxy / Tự Lấy Từ Lệnh Webshare"
+                            android:textColor="#34D399"
+                            android:textSize="11sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
 
                     <CheckBox
                         android:id="@+id/cbUseProxy"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
-                        android:text="Kích hoạt định tuyến qua Proxy Shield"
+                        android:checked="true"
+                        android:text="Kích hoạt định tuyến qua Proxy Shield (Bảo Mật Cao Nhất)"
                         android:textColor="#E0E0E0"
+                        android:textSize="12sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbAutoRotateProxies"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:checked="true"
+                        android:text="Tự động xoay vòng nhiều Proxy (Auto-Rotate) cho mỗi tác vụ"
+                        android:textColor="#E0E0E0"
+                        android:textSize="12sp" />
+
+                    <CheckBox
+                        android:id="@+id/cbStrictKillSwitch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:checked="true"
+                        android:text="Kill-Switch: Tuyệt đối chặn kết nối nếu Proxy lỗi, KHÔNG để lộ IP thật"
+                        android:textColor="#81C784"
                         android:textSize="12sp" />
 
                     <CheckBox
                         android:id="@+id/cbFallbackDirect"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="6dp"
-                        android:checked="true"
-                        android:text="Tự động Fallback sang Direct an toàn nếu Proxy lỗi"
-                        android:textColor="#E0E0E0"
-                        android:textSize="12sp" />
+                        android:layout_marginTop="4dp"
+                        android:checked="false"
+                        android:text="Cho phép quay về IP thật nếu toàn bộ Proxy hỏng (Không khuyến nghị)"
+                        android:textColor="#E57373"
+                        android:textSize="11sp" />
 
                     <CheckBox
                         android:id="@+id/cbAutoRotateAccounts"
@@ -1809,7 +1880,7 @@
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
+                        android:layout_marginTop="14dp"
                         android:orientation="horizontal">
 
                         <Button

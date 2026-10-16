@@ -93,6 +93,29 @@ public class PixAiApiHelper {
         public String errorMessage = "";
     }
 
+    static {
+        try {
+            System.setProperty("jdk.http.auth.tunneling.disabledSchemes", "");
+            System.setProperty("jdk.http.auth.proxying.disabledSchemes", "");
+        } catch (Throwable ignored) {}
+        try {
+            Authenticator.setDefault(new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    if (getRequestorType() == RequestorType.PROXY) {
+                        String host = getRequestingHost();
+                        int port = getRequestingPort();
+                        SecurityShieldManager.ParsedProxy pp = SecurityShieldManager.findProxyForHost(host, port);
+                        if (pp != null && pp.user != null) {
+                            return new PasswordAuthentication(pp.user, (pp.pass != null ? pp.pass : "").toCharArray());
+                        }
+                    }
+                    return super.getPasswordAuthentication();
+                }
+            });
+        } catch (Throwable ignored) {}
+    }
+
     public static HttpURLConnection openConnectionWithProxy(URL url, String proxyStr) throws Exception {
         if (proxyStr == null || proxyStr.trim().isEmpty()) {
             return (HttpURLConnection) url.openConnection();
@@ -101,25 +124,17 @@ public class PixAiApiHelper {
         try {
             SecurityShieldManager.ParsedProxy pp = SecurityShieldManager.parseProxyString(proxyStr);
             if (pp != null) {
+                SecurityShieldManager.registerProxyCredentials(pp);
                 Proxy.Type pType = pp.isSocks5 ? Proxy.Type.SOCKS : Proxy.Type.HTTP;
-                Proxy proxy = new Proxy(pType, new InetSocketAddress(pp.host, pp.port));
+                // createUnresolved: giải quyết DNS từ xa qua Proxy, chống lộ DNS cho nhà mạng
+                SocketAddress sa = InetSocketAddress.createUnresolved(pp.host, pp.port);
+                Proxy proxy = new Proxy(pType, sa);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
 
                 if (pp.user != null && !pp.user.isEmpty()) {
                     String userPass = pp.user + ":" + (pp.pass != null ? pp.pass : "");
-                    String authHeader = "Basic " + Base64.encodeToString(userPass.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                    String authHeader = "Basic " + Base64.encodeToString(userPass.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP).trim();
                     conn.setRequestProperty("Proxy-Authorization", authHeader);
-                    final String fUser = pp.user;
-                    final String fPass = pp.pass != null ? pp.pass : "";
-                    Authenticator.setDefault(new Authenticator() {
-                        @Override
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            if (getRequestorType() == RequestorType.PROXY) {
-                                return new PasswordAuthentication(fUser, fPass.toCharArray());
-                            }
-                            return super.getPasswordAuthentication();
-                        }
-                    });
                 }
                 return conn;
             }
@@ -128,15 +143,28 @@ public class PixAiApiHelper {
     }
 
     public static JSONObject sendGraphQL(JSONObject payload, String token, String proxyStr) throws Exception {
-        try {
-            return sendGraphQLInternal(payload, token, proxyStr);
-        } catch (Exception e) {
-            if (proxyStr != null && !proxyStr.trim().isEmpty()) {
-                // Tự động Fallback sang Direct nếu Proxy lỗi để không ngắt quãng tác vụ
-                return sendGraphQLInternal(payload, token, null);
+        Exception lastEx = null;
+        String curProxy = proxyStr;
+        for (int attempt = 0; attempt < 3; attempt++) {
+            try {
+                return sendGraphQLInternal(payload, token, curProxy);
+            } catch (Exception e) {
+                lastEx = e;
+                if (curProxy != null && !curProxy.trim().isEmpty()) {
+                    String nextProxy = SecurityShieldManager.getNextWorkingProxyCandidate(curProxy);
+                    if (nextProxy != null && !nextProxy.equalsIgnoreCase(curProxy)) {
+                        curProxy = nextProxy;
+                        continue;
+                    }
+                }
+                break;
             }
-            throw e;
         }
+        if (SecurityShieldManager.isFallbackDirectAllowed()) {
+            return sendGraphQLInternal(payload, token, null);
+        }
+        if (lastEx != null) throw lastEx;
+        throw new java.io.IOException("Proxy Shield: Toàn bộ Proxy trong kho không phản hồi. Đã kích hoạt Kill-Switch ngắt kết nối an toàn để bảo vệ IP thật của bạn.");
     }
 
     private static JSONObject sendGraphQLInternal(JSONObject payload, String token, String proxyStr) throws Exception {

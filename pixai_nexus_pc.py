@@ -23,8 +23,10 @@ import random
 import threading
 import hashlib
 import base64
+import re
 import urllib.request
 import urllib.error
+import requests
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from PIL import Image, ImageTk
@@ -146,31 +148,198 @@ REALISTIC_LORA = {
 
 DEFAULT_NEGATIVE = "lowres, worst quality, low quality, bad anatomy, explicit"
 
+def normalize_proxy_url(proxy_str):
+    if not proxy_str or not str(proxy_str).strip():
+        return None
+    s = str(proxy_str).strip().strip("'\"`")
+    if s.lower().startswith("socks5h://"):
+        return s
+    if s.lower().startswith("socks5://"):
+        return "socks5h://" + s[9:]
+    if s.lower().startswith("socks://"):
+        return "socks5h://" + s[8:]
+    if s.lower().startswith("http://") or s.lower().startswith("https://"):
+        return s
+
+    if "@" in s:
+        return "http://" + s
+
+    parts = s.split(":")
+    if len(parts) == 4:
+        if "." in parts[0] and parts[1].isdigit():
+            # host:port:user:pass -> http://user:pass@host:port
+            return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+        elif "." in parts[2] and parts[3].isdigit():
+            # user:pass:host:port -> http://user:pass@host:port
+            return f"http://{parts[0]}:{parts[1]}@{parts[2]}:{parts[3]}"
+    elif len(parts) == 2 and parts[1].isdigit():
+        return f"http://{parts[0]}:{parts[1]}"
+
+    return "http://" + s
+
+def extract_proxies_from_command_or_text(raw_input):
+    if not raw_input or not raw_input.strip():
+        return []
+    text = raw_input.strip()
+    extracted = []
+
+    m_user = re.search(r'(?:-U|--proxy-user)\s+[\'"]?([^\'"\s]+:[^\'"\s]+)[\'"]?', text)
+    creds = m_user.group(1) if m_user else None
+
+    hosts = re.findall(r'(?:-x|--proxy|--socks5|--socks5-hostname)\s+[\'"]?([^\'"\s]+)[\'"]?', text)
+    is_socks = "--socks5" in text
+    for h in hosts:
+        if creds and "@" not in h:
+            proto = "socks5://" if is_socks else "http://"
+            clean_h = re.sub(r'^(?i)(https?|socks5h?|socks)://', '', h)
+            norm = normalize_proxy_url(f"{proto}{creds}@{clean_h}")
+        else:
+            norm = normalize_proxy_url(h)
+        if norm and norm not in extracted:
+            extracted.append(norm)
+
+    urls = re.findall(r'(?i)\b((?:https?|socks5h?|socks)://[^\s\'"`<>]+)', text)
+    for u in urls:
+        norm = normalize_proxy_url(u)
+        if norm and norm not in extracted:
+            extracted.append(norm)
+
+    tokens = re.split(r'[\r\n\s,;]+', text)
+    for tok in tokens:
+        clean = tok.strip().strip("'\"`()[]")
+        if not clean or clean.lower().startswith("https://dashboard.webshare.io") or clean.lower().startswith("https://api.pixai.art") or clean.lower().startswith("https://pixai.art"):
+            continue
+        norm = normalize_proxy_url(clean)
+        if norm and norm not in extracted:
+            extracted.append(norm)
+
+    return extracted
+
+def fetch_webshare_proxies(token_or_input):
+    if not token_or_input or not token_or_input.strip():
+        return []
+    trimmed = token_or_input.strip()
+
+    # Case 1: JSON payload
+    if trimmed.startswith("{") and '"results"' in trimmed:
+        try:
+            data = json.loads(trimmed)
+            res = []
+            for item in data.get("results", []):
+                h = item.get("proxy_address")
+                p = item.get("port")
+                if not p and isinstance(item.get("ports"), dict):
+                    p = item["ports"].get("http", item["ports"].get("socks5"))
+                u = item.get("username")
+                pw = item.get("password")
+                if h and p:
+                    if u and pw:
+                        res.append(f"http://{u}:{pw}@{h}:{p}")
+                    else:
+                        res.append(f"http://{h}:{p}")
+            if res:
+                return res
+        except Exception:
+            pass
+
+    clean_token = re.sub(r'(?i)^(Token|Bearer)\s+', '', trimmed)
+    m_auth = re.search(r'Authorization:\s*(?:Token|Bearer)\s+([a-zA-Z0-9_\-]+)', trimmed, re.I)
+    if m_auth:
+        clean_token = m_auth.group(1).strip()
+
+    # Case 2: Webshare Download URL
+    if "proxy.webshare.io/api/v2/proxy/list/download/" in trimmed.lower():
+        m_dl = re.search(r'(https://proxy\.webshare\.io/api/v2/proxy/list/download/[^\s\'"`<>]+)', trimmed, re.I)
+        if m_dl:
+            dl_url = m_dl.group(1)
+            headers = {}
+            if len(clean_token) >= 20:
+                headers["Authorization"] = f"Token {clean_token}"
+            try:
+                r = requests.get(dl_url, headers=headers, timeout=15)
+                if r.status_code == 200:
+                    proxies = extract_proxies_from_command_or_text(r.text)
+                    if proxies:
+                        return proxies
+            except Exception:
+                pass
+
+    # Case 3: Webshare API Token
+    if re.match(r'^[a-zA-Z0-9_\-]{20,64}$', clean_token):
+        headers = {
+            "Authorization": f"Token {clean_token}",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PixAI-Nexus"
+        }
+        url = "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=100"
+        for _ in range(5):
+            try:
+                r = requests.get(url, headers=headers, timeout=15)
+                if r.status_code == 200:
+                    data = r.json()
+                    res = []
+                    for item in data.get("results", []):
+                        h = item.get("proxy_address")
+                        p = item.get("port")
+                        if not p and isinstance(item.get("ports"), dict):
+                            p = item["ports"].get("http", item["ports"].get("socks5"))
+                        u = item.get("username")
+                        pw = item.get("password")
+                        if h and p:
+                            if u and pw:
+                                res.append(f"http://{u}:{pw}@{h}:{p}")
+                            else:
+                                res.append(f"http://{h}:{p}")
+                    if res:
+                        return res
+                time.sleep(2)
+            except Exception:
+                break
+
+    # Case 4: Text or curl lines
+    return extract_proxies_from_command_or_text(trimmed)
+
 def http_request(url, method="POST", data=None, headers=None, proxy=None, timeout=30):
     if headers is None:
         headers = {}
     if "User-Agent" not in headers:
         headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 
-    if isinstance(data, (dict, list)):
-        body = json.dumps(data).encode("utf-8")
-        headers["Content-Type"] = "application/json"
-    elif isinstance(data, bytes):
-        body = data
-    elif isinstance(data, str):
-        body = data.encode("utf-8")
-    else:
-        body = None
+    clean_proxy = normalize_proxy_url(proxy)
+    proxies = None
+    if clean_proxy:
+        proxies = {
+            "http": clean_proxy,
+            "https": clean_proxy
+        }
 
-    req = urllib.request.Request(url, data=body, headers=headers, method=method)
-    handlers = []
-    if proxy and proxy.strip():
-        clean_proxy = proxy.strip()
-        handlers.append(urllib.request.ProxyHandler({"http": clean_proxy, "https": clean_proxy}))
-    
-    opener = urllib.request.build_opener(*handlers)
-    with opener.open(req, timeout=timeout) as resp:
-        return resp.read()
+    try:
+        if isinstance(data, (dict, list)):
+            resp = requests.request(method, url, json=data, headers=headers, proxies=proxies, timeout=timeout)
+        elif isinstance(data, (bytes, str)):
+            resp = requests.request(method, url, data=data, headers=headers, proxies=proxies, timeout=timeout)
+        else:
+            resp = requests.request(method, url, headers=headers, proxies=proxies, timeout=timeout)
+        resp.raise_for_status()
+        return resp.content
+    except Exception as req_err:
+        # Fallback to urllib only if requests had an internal issue and no proxy was requested
+        if not proxies:
+            if isinstance(data, (dict, list)):
+                body = json.dumps(data).encode("utf-8")
+                headers["Content-Type"] = "application/json"
+            elif isinstance(data, bytes):
+                body = data
+            elif isinstance(data, str):
+                body = data.encode("utf-8")
+            else:
+                body = None
+            req = urllib.request.Request(url, data=body, headers=headers, method=method)
+            opener = urllib.request.build_opener()
+            with opener.open(req, timeout=timeout) as resp:
+                return resp.read()
+        # If proxy was set and failed, strictly re-raise to prevent IP leak
+        raise req_err
 
 def http_graphql(payload, token, proxy=None, timeout=30):
     headers = {
@@ -328,8 +497,11 @@ class PixAiNexusStudio(tk.Tk):
     def load_config(self):
         default_config = {
             "use_proxy": True,
-            "proxy_address": "http://p.webshare.io:80",
-            "auto_fallback_direct": True,
+            "proxy_address": "",
+            "proxy_pool": [],
+            "auto_rotate_proxies": True,
+            "strict_kill_switch": True,
+            "auto_fallback_direct": False,
             "auto_rotate_accounts": True,
             "size_tier": "xl",
             "ratio": "9:16",
@@ -366,10 +538,20 @@ class PixAiNexusStudio(tk.Tk):
                     self.config["custom_h"] = int(self.custom_h.get())
                 except Exception:
                     pass
-            if hasattr(self, "ent_proxy_addr"):
+            if hasattr(self, "txt_proxy_pool"):
+                raw_txt = self.txt_proxy_pool.get("1.0", "end").strip()
+                extracted = extract_proxies_from_command_or_text(raw_txt)
+                self.config["proxy_pool"] = extracted
+                if extracted:
+                    self.config["proxy_address"] = extracted[0]
+            elif hasattr(self, "ent_proxy_addr"):
                 self.config["proxy_address"] = self.ent_proxy_addr.get().strip()
             if hasattr(self, "var_use_proxy"):
                 self.config["use_proxy"] = self.var_use_proxy.get()
+            if hasattr(self, "var_auto_rotate_proxies"):
+                self.config["auto_rotate_proxies"] = self.var_auto_rotate_proxies.get()
+            if hasattr(self, "var_strict_kill_switch"):
+                self.config["strict_kill_switch"] = self.var_strict_kill_switch.get()
             if hasattr(self, "var_auto_fallback"):
                 self.config["auto_fallback_direct"] = self.var_auto_fallback.get()
             if hasattr(self, "var_auto_rotate"):
@@ -402,9 +584,20 @@ class PixAiNexusStudio(tk.Tk):
         return sum(a.get("credits", 0) for a in self.accounts)
 
     def get_effective_proxy(self):
-        if self.config.get("use_proxy"):
-            return self.config.get("proxy_address", "").strip()
-        return None
+        if not self.config.get("use_proxy", True):
+            return None
+        pool = self.config.get("proxy_pool", [])
+        if not pool:
+            single = self.config.get("proxy_address", "").strip()
+            return normalize_proxy_url(single) if single else None
+
+        if not self.config.get("auto_rotate_proxies", True) or len(pool) == 1:
+            return pool[0]
+
+        cursor = getattr(self, "_proxy_cursor", 0)
+        idx = cursor % len(pool)
+        self._proxy_cursor = idx + 1
+        return pool[idx]
 
     def setup_theme(self):
         # OLED True Dark Palette (#0A0A0A / #141414 / #222222)
@@ -885,26 +1078,59 @@ class PixAiNexusStudio(tk.Tk):
             self.refresh_history_table()
 
     # ================= TAB 4: BẢO MẬT & PROXY =================
+    def update_proxy_pool_status_label(self):
+        pool = self.config.get("proxy_pool", [])
+        cnt = len(pool)
+        rot = "BẬT" if self.config.get("auto_rotate_proxies", True) else "TẮT"
+        ks = "BẬT" if self.config.get("strict_kill_switch", True) else "TẮT"
+        txt = f"Proxy Pool: {cnt} proxy khả dụng | Auto-Rotate: {rot} | Kill-Switch: {ks}"
+        if hasattr(self, "lbl_pool_status"):
+            self.lbl_pool_status.config(text=txt, fg=self.c_success if cnt > 0 else self.c_muted)
+
     def build_security_tab(self):
         container = tk.Frame(self.tab_security, bg=self.c_bg, padx=16, pady=16)
         container.pack(fill="both", expand=True)
 
-        tk.Label(container, text="BẢO MẬT & PROXY SHIELD", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 13, "bold")).pack(anchor="w", pady=(0, 10))
+        tk.Label(container, text="BẢO MẬT & PROXY SHIELD (TỐI ĐA HÓA QUYỀN RIÊNG TƯ)", bg=self.c_bg, fg=self.c_text, font=("Segoe UI", 13, "bold")).pack(anchor="w", pady=(0, 10))
 
-        card_sec = tk.LabelFrame(container, text=" Cấu Hình Định Tuyến Proxy ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=14, pady=12)
+        card_sec = tk.LabelFrame(container, text=" Cấu Hình Proxy Pool & Anti-Leak Shield ", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9, "bold"), bd=1, relief="solid", padx=14, pady=12)
         card_sec.pack(fill="x", pady=(0, 10))
 
-        tk.Label(card_sec, text="Địa chỉ Proxy (HTTP/SOCKS5):", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w")
-        self.ent_proxy_addr = tk.Entry(card_sec, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Segoe UI", 9))
-        self.ent_proxy_addr.pack(fill="x", pady=(3, 8))
-        self.ent_proxy_addr.insert(0, self.config.get("proxy_address", ""))
+        tk.Label(card_sec, text="Danh Sách Proxy (HTTP/SOCKS5 - mỗi dòng 1 proxy, hoặc lệnh curl/token/download URL Webshare):", bg=self.c_card, fg=self.c_text, font=("Segoe UI", 9)).pack(anchor="w")
+
+        self.txt_proxy_pool = tk.Text(card_sec, height=5, bg=self.c_input, fg=self.c_text, insertbackground=self.c_text, bd=1, relief="solid", font=("Consolas", 9))
+        self.txt_proxy_pool.pack(fill="x", pady=(4, 4))
+
+        pool = self.config.get("proxy_pool", [])
+        if pool:
+            self.txt_proxy_pool.insert("1.0", "\n".join(pool))
+        elif self.config.get("proxy_address"):
+            self.txt_proxy_pool.insert("1.0", self.config.get("proxy_address"))
+
+        self.lbl_pool_status = tk.Label(card_sec, text="Khởi tạo pool...", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8))
+        self.lbl_pool_status.pack(anchor="w", pady=(0, 6))
+        self.update_proxy_pool_status_label()
+
+        row_import = tk.Frame(card_sec, bg=self.c_card)
+        row_import.pack(fill="x", pady=(0, 8))
+
+        btn_webshare = tk.Button(row_import, text="⚡ Nạp Proxy / Tự Lấy Từ Lệnh Webshare", bg="#1E3A8A", fg="#93C5FD", activebackground="#2563EB", activeforeground="#FFFFFF", relief="solid", bd=1, padx=12, pady=5, font=("Segoe UI", 9, "bold"), command=self.on_import_webshare)
+        btn_webshare.pack(side="left")
 
         self.var_use_proxy = tk.BooleanVar(value=self.config.get("use_proxy", True))
-        self.cb_use_proxy = tk.Checkbutton(card_sec, text="Kích hoạt định tuyến qua Proxy Shield", variable=self.var_use_proxy, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.cb_use_proxy = tk.Checkbutton(card_sec, text="Kích hoạt định tuyến qua Proxy Shield (Bảo vệ IP & che giấu ISP)", variable=self.var_use_proxy, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
         self.cb_use_proxy.pack(anchor="w", pady=2)
 
-        self.var_auto_fallback = tk.BooleanVar(value=self.config.get("auto_fallback_direct", True))
-        self.cb_fallback = tk.Checkbutton(card_sec, text="Tự động Fallback sang Direct an toàn nếu Proxy lỗi", variable=self.var_auto_fallback, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.var_auto_rotate_proxies = tk.BooleanVar(value=self.config.get("auto_rotate_proxies", True))
+        self.cb_auto_rotate_proxy = tk.Checkbutton(card_sec, text="Tự động xoay Proxy liên tục qua từng tác vụ (Proxy Rotation)", variable=self.var_auto_rotate_proxies, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.cb_auto_rotate_proxy.pack(anchor="w", pady=2)
+
+        self.var_strict_kill_switch = tk.BooleanVar(value=self.config.get("strict_kill_switch", True))
+        self.cb_strict_kill_switch = tk.Checkbutton(card_sec, text="Strict Anti-Leak Kill-Switch (Chặn hoàn toàn rò rỉ IP thật nếu proxy đứt)", variable=self.var_strict_kill_switch, bg=self.c_card, fg=self.c_text, selectcolor=self.c_input, activebackground=self.c_card)
+        self.cb_strict_kill_switch.pack(anchor="w", pady=2)
+
+        self.var_auto_fallback = tk.BooleanVar(value=self.config.get("auto_fallback_direct", False))
+        self.cb_fallback = tk.Checkbutton(card_sec, text="Tự động Fallback sang Direct an toàn nếu Proxy lỗi (Cảnh báo: Có thể lộ IP thật)", variable=self.var_auto_fallback, bg=self.c_card, fg=self.c_muted, selectcolor=self.c_input, activebackground=self.c_card)
         self.cb_fallback.pack(anchor="w", pady=2)
 
         self.var_auto_rotate = tk.BooleanVar(value=self.config.get("auto_rotate_accounts", True))
@@ -2080,29 +2306,74 @@ class PixAiNexusStudio(tk.Tk):
             self.log_message("Đã xóa sạch kho lịch sử.", "info")
 
     # ================= BẢO MẬT & PROXY =================
+    def on_import_webshare(self):
+        raw = self.txt_proxy_pool.get("1.0", "end").strip()
+        if not raw:
+            from tkinter.simpledialog import askstring
+            ans = askstring("Nạp Proxy Webshare", "Dán lệnh cURL, Token, Link Download hoặc danh sách Proxy Webshare:")
+            if not ans:
+                return
+            raw = ans.strip()
+
+        self.log_message("Đang nạp và phân tích danh sách Proxy Webshare...", "info")
+
+        def _fetch():
+            proxies = fetch_webshare_proxies(raw)
+            if not proxies:
+                self.after(0, lambda: messagebox.showwarning("Cảnh báo", "Không tìm thấy proxy hợp lệ từ nội dung nhập. Vui lòng kiểm tra lại."))
+                return
+
+            def _apply():
+                self.txt_proxy_pool.delete("1.0", "end")
+                self.txt_proxy_pool.insert("1.0", "\n".join(proxies))
+                self.config["proxy_pool"] = proxies
+                self.config["proxy_address"] = proxies[0]
+                self.config["use_proxy"] = True
+                self.var_use_proxy.set(True)
+                self.save_config()
+                self.update_proxy_pool_status_label()
+                self.lbl_proxy_status.config(text="Proxy Shield: BẬT")
+                self.log_message(f"Đã nạp thành công {len(proxies)} proxy vào Pool và kích hoạt Shield!", "success")
+                messagebox.showinfo("Thành công", f"Đã nạp thành công {len(proxies)} Proxy vào danh sách xoay tua!")
+            self.after(0, _apply)
+
+        threading.Thread(target=_fetch, daemon=True).start()
+
     def on_save_security_config(self):
-        self.config["proxy_address"] = self.ent_proxy_addr.get().strip()
+        raw_txt = self.txt_proxy_pool.get("1.0", "end").strip()
+        extracted = extract_proxies_from_command_or_text(raw_txt)
+        self.config["proxy_pool"] = extracted
+        self.config["proxy_address"] = extracted[0] if extracted else ""
         self.config["use_proxy"] = self.var_use_proxy.get()
+        self.config["auto_rotate_proxies"] = self.var_auto_rotate_proxies.get()
+        self.config["strict_kill_switch"] = self.var_strict_kill_switch.get()
         self.config["auto_fallback_direct"] = self.var_auto_fallback.get()
         self.config["auto_rotate_accounts"] = self.var_auto_rotate.get()
         self.save_config()
+        self.update_proxy_pool_status_label()
         self.lbl_proxy_status.config(text="Proxy Shield: BẬT" if self.config["use_proxy"] else "Proxy Shield: TẮT")
-        self.log_message(f"Đã lưu cấu hình: Proxy={self.config['proxy_address']} (Shield={'BẬT' if self.config['use_proxy'] else 'TẮT'})", "info")
-        messagebox.showinfo("Thành công", "Đã lưu cấu hình Bảo Mật & Proxy Shield!")
+        self.log_message(f"Đã lưu cấu hình: Pool={len(extracted)} proxy (Shield={'BẬT' if self.config['use_proxy'] else 'TẮT'})", "info")
+        messagebox.showinfo("Thành công", f"Đã lưu cấu hình Bảo Mật & Proxy Shield!\n- Pool: {len(extracted)} proxy\n- Xoay tua: {'BẬT' if self.config['auto_rotate_proxies'] else 'TẮT'}\n- Strict Kill-Switch: {'BẬT' if self.config['strict_kill_switch'] else 'TẮT'}")
 
     def on_test_proxy(self):
-        proxy = self.ent_proxy_addr.get().strip()
-        self.lbl_proxy_test_res.config(text="Đang kiểm tra kết nối...", fg=self.c_text)
+        proxy = self.get_effective_proxy()
+        if not proxy:
+            raw_txt = self.txt_proxy_pool.get("1.0", "end").strip()
+            ext = extract_proxies_from_command_or_text(raw_txt)
+            if ext:
+                proxy = ext[0]
+
+        self.lbl_proxy_test_res.config(text="Đang kiểm tra kết nối qua Proxy Shield...", fg=self.c_text)
 
         def _test():
             t0 = time.time()
             try:
-                raw = http_request("https://ipwho.is/", method="GET", proxy=proxy, timeout=10)
+                raw = http_request("https://ipwho.is/", method="GET", proxy=proxy, timeout=12)
                 ping = int((time.time() - t0) * 1000)
                 data = json.loads(raw.decode("utf-8"))
                 ip = data.get("ip", "Unknown")
                 country = data.get("country", "Unknown")
-                res_txt = f"KẾT NỐI THÀNH CÔNG: IP {ip} | Quốc gia: {country} | Ping: {ping}ms"
+                res_txt = f"BẢO VỆ THÀNH CÔNG: IP {ip} | Quốc gia: {country} | Ping: {ping}ms"
                 self.after(0, lambda: self.lbl_proxy_test_res.config(text=res_txt, fg=self.c_success))
                 self.after(0, lambda: self.log_message(f"Test Proxy thành công: IP {ip} ({country}) - Ping {ping}ms", "success"))
             except Exception as e:

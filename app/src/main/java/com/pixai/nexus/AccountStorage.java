@@ -429,7 +429,7 @@ public class AccountStorage {
 
     // --- PREFERENCES / SETTINGS PERSISTENCE ---
     public boolean isUseProxy() {
-        return prefs.getBoolean(KEY_USE_PROXY, false);
+        return prefs.getBoolean(KEY_USE_PROXY, true);
     }
 
     public void setUseProxy(boolean use) {
@@ -445,7 +445,7 @@ public class AccountStorage {
     }
 
     public boolean isFallbackDirect() {
-        return prefs.getBoolean(KEY_FALLBACK_DIRECT, true);
+        return prefs.getBoolean(KEY_FALLBACK_DIRECT, false);
     }
 
     public void setFallbackDirect(boolean fb) {
@@ -541,18 +541,57 @@ public class AccountStorage {
     }
 
     public boolean isProxyWebUiEnabled() { return prefs.getBoolean("security_proxy_web_ui", true); }
-    public boolean isAutoRotateProxyEnabled() { return prefs.getBoolean("security_auto_rotate_proxy", false); }
-    public List<String> getParsedProxyPool() {
+    public boolean isAutoRotateProxyEnabled() { return prefs.getBoolean("security_auto_rotate_proxy", true); }
+    public void setAutoRotateProxyEnabled(boolean enable) { prefs.edit().putBoolean("security_auto_rotate_proxy", enable).apply(); }
+
+    public synchronized void saveProxyPool(List<String> pool) {
+        JSONArray arr = new JSONArray();
+        if (pool != null) {
+            for (String s : pool) {
+                if (s != null && !s.trim().isEmpty()) {
+                    arr.put(s.trim());
+                }
+            }
+        }
+        prefs.edit().putString("security_proxy_pool", arr.toString()).apply();
+    }
+
+    public synchronized List<String> getProxyPool() {
         List<String> list = new ArrayList<>();
-        String raw = getProxyAddress();
+        String raw = prefs.getString("security_proxy_pool", "");
         if (raw != null && !raw.trim().isEmpty()) {
-            list.add(raw.trim());
+            try {
+                JSONArray arr = new JSONArray(raw);
+                for (int i = 0; i < arr.length(); i++) {
+                    String item = arr.optString(i, "").trim();
+                    if (!item.isEmpty()) list.add(item);
+                }
+            } catch (Exception ignored) {}
         }
         return list;
     }
+
+    public synchronized List<String> getParsedProxyPool() {
+        List<String> pool = getProxyPool();
+        if (!pool.isEmpty()) return pool;
+        String raw = getProxyAddress();
+        if (raw != null && !raw.trim().isEmpty()) {
+            List<String> extracted = SecurityShieldManager.extractProxiesFromCommandOrText(raw);
+            if (!extracted.isEmpty()) {
+                saveProxyPool(extracted);
+                return extracted;
+            }
+            List<String> single = new ArrayList<>();
+            single.add(raw.trim());
+            return single;
+        }
+        return new ArrayList<>();
+    }
+
     public boolean isDohEnabled() { return prefs.getBoolean("security_doh_enabled", true); }
     public boolean isAntiDpiEnabled() { return prefs.getBoolean("security_anti_dpi_enabled", true); }
-    public boolean isStrictKillSwitchEnabled() { return prefs.getBoolean("security_kill_switch_enabled", false); }
+    public boolean isStrictKillSwitchEnabled() { return prefs.getBoolean("security_kill_switch_enabled", true); }
+    public void setStrictKillSwitchEnabled(boolean enable) { prefs.edit().putBoolean("security_kill_switch_enabled", enable).apply(); }
     public boolean isBlockWebRtcEnabled() { return prefs.getBoolean("security_block_webrtc", true); }
     public boolean isSpoofFingerprintEnabled() { return prefs.getBoolean("security_spoof_fp", true); }
     public boolean isBlockTrackersEnabled() { return prefs.getBoolean("security_block_trackers", true); }

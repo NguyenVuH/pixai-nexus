@@ -149,9 +149,10 @@ public class MainActivity extends AppCompatActivity {
 
     // Tab 4: Security & Proxy Views
     private EditText etProxyAddress;
-    private CheckBox cbUseProxy, cbFallbackDirect, cbAutoRotateAccounts;
+    private CheckBox cbUseProxy, cbAutoRotateProxies, cbStrictKillSwitch, cbFallbackDirect, cbAutoRotateAccounts;
     private Button btnSaveSecurity, btnTestProxy;
-    private TextView tvProxyTestResult;
+    private TextView tvProxyTestResult, tvProxyPoolStatus;
+    private View btnImportWebshare;
 
     // Tab 5: Logs Views
     private ScrollView svLogConsole;
@@ -304,7 +305,11 @@ public class MainActivity extends AppCompatActivity {
         lvHistory = findViewById(R.id.lvHistory);
 
         etProxyAddress = findViewById(R.id.etProxyAddress);
+        tvProxyPoolStatus = findViewById(R.id.tvProxyPoolStatus);
+        btnImportWebshare = findViewById(R.id.btnImportWebshare);
         cbUseProxy = findViewById(R.id.cbUseProxy);
+        cbAutoRotateProxies = findViewById(R.id.cbAutoRotateProxies);
+        cbStrictKillSwitch = findViewById(R.id.cbStrictKillSwitch);
         cbFallbackDirect = findViewById(R.id.cbFallbackDirect);
         cbAutoRotateAccounts = findViewById(R.id.cbAutoRotateAccounts);
         btnSaveSecurity = findViewById(R.id.btnSaveSecurity);
@@ -365,10 +370,33 @@ public class MainActivity extends AppCompatActivity {
         batchCount = storage.getSavedBatch();
         updateBatchButtonsDisplay();
 
-        etProxyAddress.setText(storage.getProxyAddress());
+        List<String> pool = storage.getParsedProxyPool();
+        if (!pool.isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (String p : pool) sb.append(p).append("\n");
+            etProxyAddress.setText(sb.toString().trim());
+        } else {
+            etProxyAddress.setText(storage.getProxyAddress());
+        }
         cbUseProxy.setChecked(storage.isUseProxy());
+        cbAutoRotateProxies.setChecked(storage.isAutoRotateProxyEnabled());
+        cbStrictKillSwitch.setChecked(storage.isStrictKillSwitchEnabled());
         cbFallbackDirect.setChecked(storage.isFallbackDirect());
         cbAutoRotateAccounts.setChecked(storage.isAutoRotateAccounts());
+        updateProxyPoolBadge();
+    }
+
+    private void updateProxyPoolBadge() {
+        if (tvProxyPoolStatus != null) {
+            List<String> pool = storage.getParsedProxyPool();
+            if (pool.isEmpty()) {
+                tvProxyPoolStatus.setText("Kho Proxy: Chưa có proxy nào trong kho");
+                tvProxyPoolStatus.setTextColor(0xFF9E9E9E);
+            } else {
+                tvProxyPoolStatus.setText("Kho Proxy: " + pool.size() + " proxy khả dụng (Xoay: " + (storage.isAutoRotateProxyEnabled() ? "BẬT" : "TẮT") + " • Kill-Switch: " + (storage.isStrictKillSwitchEnabled() ? "BẢO VỆ" : "TẮT") + ")");
+                tvProxyPoolStatus.setTextColor(0xFF81C784);
+            }
+        }
     }
 
     private void setupNavigation() {
@@ -786,7 +814,7 @@ public class MainActivity extends AppCompatActivity {
 
                 AccountModel active = storage.getActiveAccount();
                 String token = active != null ? active.getToken() : "";
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                String proxy = SecurityShieldManager.getRotatedProxy();
 
                 String mediaId = PixAiApiHelper.uploadImageToPixAi(imageBytes, token, proxy);
 
@@ -927,7 +955,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         String neg = etNegativePrompt.getText().toString().trim();
-        String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+        String proxy = SecurityShieldManager.getRotatedProxy();
         List<String> contextList = new ArrayList<>(attachedMediaIds);
 
         // Nút Tạo Ảnh không bị khóa, cho phép bấm tạo tiếp các tiến trình song song!
@@ -1290,7 +1318,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private HttpURLConnection openConnectionWithAppProxy(URL url) throws Exception {
-        String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+        String proxy = SecurityShieldManager.getRotatedProxy();
         return PixAiApiHelper.openConnectionWithProxy(url, proxy);
     }
 
@@ -1510,7 +1538,7 @@ public class MainActivity extends AppCompatActivity {
 
             Toast.makeText(this, "Đang kiểm tra và thêm tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                String proxy = SecurityShieldManager.getRotatedProxy();
                 long quota = PixAiApiHelper.getQuota(token, proxy);
                 String email = "acc_" + (System.currentTimeMillis() % 100000) + "@nexus.com";
                 AccountModel acc = new AccountModel(email, token, quota);
@@ -1544,7 +1572,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Đang đồng bộ số dư toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                String proxy = SecurityShieldManager.getRotatedProxy();
                 for (AccountModel a : list) {
                     if (a.getToken() != null && !a.getToken().isEmpty()) {
                         long q = PixAiApiHelper.getQuota(a.getToken(), proxy);
@@ -1567,7 +1595,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Đang nhận thưởng Daily cho toàn bộ tài khoản...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                String proxy = SecurityShieldManager.getRotatedProxy();
                 int succ = 0;
                 for (AccountModel a : list) {
                     if (a.getToken() != null && !a.getToken().isEmpty()) {
@@ -1593,7 +1621,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Đang nhận toàn bộ Social & Visit Quests...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                String proxy = SecurityShieldManager.getRotatedProxy();
                 int totalQ = 0;
                 for (AccountModel a : list) {
                     if (a.getToken() != null && !a.getToken().isEmpty()) {
@@ -1620,7 +1648,7 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Đang mở khóa 18+ và thu thập bằng chứng từ máy chủ PixAI...", Toast.LENGTH_SHORT).show();
             executor.execute(() -> {
                 List<AccountModel> list = storage.getAccounts();
-                String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+                String proxy = SecurityShieldManager.getRotatedProxy();
                 StringBuilder allProofs = new StringBuilder();
                 int successCount = 0;
                 for (AccountModel a : list) {
@@ -1672,7 +1700,8 @@ public class MainActivity extends AppCompatActivity {
 
         executor.execute(() -> {
             try {
-                final String proxy = storage.isUseProxy() ? storage.getProxyAddress() : "";
+                String rotProxy = SecurityShieldManager.getRotatedProxy();
+                final String proxy = rotProxy != null ? rotProxy : "";
                 final int mailOffset = (retryCount == 0) ? 0 : (pixaiMailProviderOffset++);
 
                 logMessage("Đang cấp phát hòm thư Temp-Mail tương thích chuẩn PixAI...");
@@ -1966,35 +1995,112 @@ public class MainActivity extends AppCompatActivity {
 
     // --- TAB 4: BẢO MẬT & PROXY SHIELD ---
     private void setupSecurityTabActions() {
+        if (btnImportWebshare != null) {
+            btnImportWebshare.setOnClickListener(v -> {
+                String input = etProxyAddress.getText().toString().trim();
+                if (input.isEmpty()) {
+                    Toast.makeText(this, "Vui lòng dán lệnh curl Webshare, link download hoặc danh sách proxy vào ô trên!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                logMessage("Đang phân tích lệnh / danh sách Webshare...");
+                Toast.makeText(this, "Đang xử lý nạp danh sách Webshare...", Toast.LENGTH_SHORT).show();
+
+                executor.execute(() -> {
+                    List<SecurityShieldManager.ProxyNodeInfo> nodes = SecurityShieldManager.fetchWebshareProxies(input, (msg, col) -> logMessage(msg));
+                    List<String> urls = new ArrayList<>();
+                    if (!nodes.isEmpty()) {
+                        for (SecurityShieldManager.ProxyNodeInfo node : nodes) {
+                            if (node.proxyUrl != null && !node.proxyUrl.isEmpty()) {
+                                urls.add(node.proxyUrl);
+                            }
+                        }
+                    }
+                    if (urls.isEmpty()) {
+                        urls = SecurityShieldManager.extractProxiesFromCommandOrText(input);
+                    }
+
+                    if (!urls.isEmpty()) {
+                        final List<String> finalUrls = urls;
+                        storage.saveProxyPool(finalUrls);
+                        storage.setProxyAddress(finalUrls.get(0));
+                        storage.setUseProxy(true);
+                        storage.setAutoRotateProxyEnabled(true);
+                        storage.setStrictKillSwitchEnabled(true);
+                        storage.setFallbackDirect(false);
+                        SecurityShieldManager.syncAndApplySecurityConfig(storage);
+
+                        mainHandler.post(() -> {
+                            StringBuilder sb = new StringBuilder();
+                            for (String u : finalUrls) sb.append(u).append("\n");
+                            etProxyAddress.setText(sb.toString().trim());
+                            cbUseProxy.setChecked(true);
+                            cbAutoRotateProxies.setChecked(true);
+                            cbStrictKillSwitch.setChecked(true);
+                            cbFallbackDirect.setChecked(false);
+                            updateProxyPoolBadge();
+                            refreshHeader();
+                            logMessage("Đã nạp thành công " + finalUrls.size() + " proxy vào kho xoay vòng. Bảo mật tối đa đã kích hoạt!");
+                            Toast.makeText(this, "Đã nạp " + finalUrls.size() + " proxy vào kho xoay vòng!", Toast.LENGTH_SHORT).show();
+                        });
+                    } else {
+                        mainHandler.post(() -> {
+                            logMessage("Không tìm thấy Proxy hợp lệ. Vui lòng kiểm tra lại lệnh curl hoặc danh sách IP:PORT:USER:PASS.");
+                            Toast.makeText(this, "Không tìm thấy proxy hợp lệ trong dữ liệu nhập!", Toast.LENGTH_LONG).show();
+                        });
+                    }
+                });
+            });
+        }
+
         btnSaveSecurity.setOnClickListener(v -> {
-            String addr = etProxyAddress.getText().toString().trim();
+            String rawText = etProxyAddress.getText().toString().trim();
             boolean useP = cbUseProxy.isChecked();
+            boolean autoRot = cbAutoRotateProxies.isChecked();
+            boolean strictK = cbStrictKillSwitch.isChecked();
             boolean fb = cbFallbackDirect.isChecked();
             boolean autoR = cbAutoRotateAccounts.isChecked();
 
-            storage.setProxyAddress(addr);
+            List<String> pool = SecurityShieldManager.extractProxiesFromCommandOrText(rawText);
+            if (!pool.isEmpty()) {
+                storage.saveProxyPool(pool);
+                storage.setProxyAddress(pool.get(0));
+            } else if (!rawText.isEmpty()) {
+                storage.setProxyAddress(rawText);
+            }
+
             storage.setUseProxy(useP);
+            storage.setAutoRotateProxyEnabled(autoRot);
+            storage.setStrictKillSwitchEnabled(strictK);
             storage.setFallbackDirect(fb);
             storage.setAutoRotateAccounts(autoR);
 
+            SecurityShieldManager.syncAndApplySecurityConfig(storage);
+            updateProxyPoolBadge();
             refreshHeader();
             updateCostBadge();
             Toast.makeText(this, "Đã lưu cấu hình Bảo Mật & Proxy Shield!", Toast.LENGTH_SHORT).show();
-            logMessage("Đã cập nhật cấu hình: Proxy=" + addr + " (Shield=" + (useP ? "BẬT" : "TẮT") + ", Fallback=" + (fb ? "BẬT" : "TẮT") + ")");
+            logMessage("Đã lưu cấu hình: Proxy Pool=" + storage.getParsedProxyPool().size() + " nodes (Shield=" + (useP ? "BẬT" : "TẮT") + ", Xoay=" + (autoRot ? "BẬT" : "TẮT") + ", Kill-Switch=" + (strictK ? "BẢO VỆ" : "TẮT") + ", Fallback=" + (fb ? "BẬT" : "TẮT") + ")");
         });
 
         btnTestProxy.setOnClickListener(v -> {
-            String proxy = etProxyAddress.getText().toString().trim();
-            tvProxyTestResult.setText("Đang kiểm tra kết nối Proxy...");
+            final String testProxy = SecurityShieldManager.getRotatedProxy();
+            if (testProxy == null || testProxy.isEmpty()) {
+                tvProxyTestResult.setText("Chưa có Proxy nào được cấu hình trong kho.");
+                tvProxyTestResult.setTextColor(0xFFE57373);
+                return;
+            }
+
+            tvProxyTestResult.setText("Đang kiểm tra kết nối qua Proxy: " + testProxy + "...");
             tvProxyTestResult.setTextColor(0xFFFFFFFF);
 
             executor.execute(() -> {
                 long t0 = System.currentTimeMillis();
                 try {
                     URL url = new URL("https://ipwho.is/");
-                    HttpURLConnection conn = PixAiApiHelper.openConnectionWithProxy(url, proxy);
-                    conn.setConnectTimeout(8000);
-                    conn.setReadTimeout(10000);
+                    HttpURLConnection conn = PixAiApiHelper.openConnectionWithProxy(url, testProxy);
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(12000);
                     InputStream is = conn.getInputStream();
                     ByteArrayOutputStream bos = new ByteArrayOutputStream();
                     byte[] buf = new byte[4096];
@@ -2007,15 +2113,15 @@ public class MainActivity extends AppCompatActivity {
                     String country = json.optString("country", "Unknown");
 
                     mainHandler.post(() -> {
-                        tvProxyTestResult.setText("KẾT NỐI THÀNH CÔNG: IP " + ip + " | Quốc gia: " + country + " | Ping: " + ping + "ms");
+                        tvProxyTestResult.setText("KẾT NỐI THÀNH CÔNG: IP " + ip + " | Quốc gia: " + country + " | Ping: " + ping + "ms\n(Kho: " + storage.getParsedProxyPool().size() + " proxy xoay vòng)");
                         tvProxyTestResult.setTextColor(0xFF81C784);
-                        logMessage("Kiểm tra Proxy thành công: IP " + ip + " (" + country + ") - Ping " + ping + "ms");
+                        logMessage("Kiểm tra Proxy thành công: IP " + ip + " (" + country + ") - Ping " + ping + "ms (Pool: " + storage.getParsedProxyPool().size() + ")");
                     });
                 } catch (Exception e) {
                     mainHandler.post(() -> {
-                        tvProxyTestResult.setText("KẾT NỐI THẤT BẠI: " + e.getMessage());
+                        tvProxyTestResult.setText("KẾT NỐI THẤT BẠI: " + e.getMessage() + "\n(Hãy kiểm tra lại thông tin User:Pass hoặc định dạng host:port)");
                         tvProxyTestResult.setTextColor(0xFFE57373);
-                        logMessage("Kiểm tra Proxy thất bại: " + e.getMessage());
+                        logMessage("Kiểm tra Proxy thất bại (" + testProxy + "): " + e.getMessage());
                     });
                 }
             });
@@ -2092,7 +2198,7 @@ public class MainActivity extends AppCompatActivity {
         if (pending.isEmpty()) return;
         AccountModel active = storage.getActiveAccount();
         if (active == null || active.getToken() == null) return;
-        String proxy = storage.isUseProxy() ? storage.getProxyAddress() : null;
+        String proxy = SecurityShieldManager.getRotatedProxy();
         for (HistoryItem item : pending) {
             attachTaskCardToQueue(item, active.getToken(), proxy);
         }

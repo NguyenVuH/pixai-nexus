@@ -58,6 +58,46 @@ public class SecurityShieldManager {
     private static final AtomicLong blockedTrackersCount = new AtomicLong(0);
     private static final AtomicLong dohResolvedCount = new AtomicLong(0);
 
+    private static final Map<String, ParsedProxy> proxyCredentialsCache = new ConcurrentHashMap<>();
+    private static volatile boolean fallbackDirectAllowed = false;
+
+    public static void registerProxyCredentials(ParsedProxy pp) {
+        if (pp == null || pp.host == null) return;
+        proxyCredentialsCache.put(pp.host.toLowerCase(Locale.US) + ":" + pp.port, pp);
+        proxyCredentialsCache.put(pp.host.toLowerCase(Locale.US), pp);
+    }
+
+    public static ParsedProxy findProxyForHost(String host, int port) {
+        if (host == null) return null;
+        String key = host.toLowerCase(Locale.US) + ":" + port;
+        ParsedProxy pp = proxyCredentialsCache.get(key);
+        if (pp != null) return pp;
+        return proxyCredentialsCache.get(host.toLowerCase(Locale.US));
+    }
+
+    public static boolean isFallbackDirectAllowed() {
+        return fallbackDirectAllowed;
+    }
+
+    public static void setFallbackDirectAllowed(boolean allowed) {
+        fallbackDirectAllowed = allowed;
+    }
+
+    public static synchronized String getRotatedProxy() {
+        if (!useUpstreamProxy) return null;
+        List<String> pool = activeProxyPool;
+        if (pool == null || pool.isEmpty()) {
+            return (upstreamProxyRaw != null && !upstreamProxyRaw.trim().isEmpty()) ? upstreamProxyRaw : null;
+        }
+        if (!autoRotateProxy || pool.size() == 1) {
+            return pool.get(0);
+        }
+        int idx = Math.abs(runtimePoolCursor.getAndIncrement()) % pool.size();
+        String chosen = pool.get(idx);
+        upstreamProxyRaw = chosen;
+        return chosen;
+    }
+
     public static void initialize(android.content.Context context) {
         ensureLocalTunnelRunning();
     }
@@ -414,11 +454,8 @@ public class SecurityShieldManager {
                 }
             }
 
-            // Loại bỏ các host không phải proxy hoặc cổng p.webshare.io:80 lỗi 407 trên gói Free
-            if (host.equalsIgnoreCase("ipv4.webshare.io")
-                    || host.equalsIgnoreCase("proxy.webshare.io")
-                    || host.equalsIgnoreCase("dashboard.webshare.io")
-                    || host.equalsIgnoreCase("p.webshare.io")
+            // Loại bỏ các domain web không phải proxy server
+            if (host.equalsIgnoreCase("dashboard.webshare.io")
                     || host.equalsIgnoreCase("api.pixai.art")
                     || host.equalsIgnoreCase("pixai.art")) {
                 return null;
@@ -436,6 +473,7 @@ public class SecurityShieldManager {
                     String b64 = Base64.encodeToString(cred.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
                     pp.basicAuthHeader = "Basic " + b64.trim();
                 }
+                registerProxyCredentials(pp);
                 return pp;
             }
         } catch (Exception ignored) {}
@@ -480,10 +518,9 @@ public class SecurityShieldManager {
         for (String token : tokens) {
             if (token == null || token.isEmpty()) continue;
             String clean = token.replaceAll("^['\"`\\(\\[]+|['\"`\\)\\]]+$", "");
-            if (clean.toLowerCase().startsWith("http://ipv4.webshare")
-                    || clean.toLowerCase().startsWith("https://ipv4.webshare")
-                    || clean.toLowerCase().startsWith("https://proxy.webshare.io")
-                    || clean.toLowerCase().startsWith("https://dashboard.webshare.io")) {
+            if (clean.toLowerCase().startsWith("https://dashboard.webshare.io")
+                    || clean.toLowerCase().startsWith("https://api.pixai.art")
+                    || clean.toLowerCase().startsWith("https://pixai.art")) {
                 continue;
             }
             ParsedProxy pp = parseProxyString(clean);
@@ -510,13 +547,24 @@ public class SecurityShieldManager {
             return parseWebshareProxyListJson(trimmed);
         }
 
-        // Trường hợp 2: Chuỗi truyền vào chứa Link Download của Webshare (https://proxy.webshare.io/api/v2/proxy/list/download/...)
+        // Trích xuất Token nếu chuỗi chứa lệnh curl với Header Authorization: Token xyz
+        String cleanToken = trimmed.replaceFirst("(?i)^Token\\s+", "").replaceFirst("(?i)^Bearer\\s+", "").trim();
+        Matcher mAuth = Pattern.compile("Authorization:\\s*(?:Token|Bearer)\\s+([a-zA-Z0-9_\\-]+)", Pattern.CASE_INSENSITIVE).matcher(trimmed);
+        if (mAuth.find()) {
+            cleanToken = mAuth.group(1).trim();
+        }
+
+        // Trường hợp 2: Chuỗi truyền vào chứa Link Download của Webshare
         if (trimmed.toLowerCase().contains("proxy.webshare.io/api/v2/proxy/list/download/")) {
             Matcher m = Pattern.compile("(https://proxy\\.webshare\\.io/api/v2/proxy/list/download/[^\\s'\"`<>]+)", Pattern.CASE_INSENSITIVE).matcher(trimmed);
             if (m.find()) {
                 String dlUrl = m.group(1);
                 if (log != null) log.log("🌐 Đang tải danh sách Proxy từ Link Download Webshare...", "#60A5FA");
-                String resp = PixAiApiHelper.httpRequestWithHeaders(dlUrl, "GET", null, null, null, 12);
+                Map<String, String> dlHeaders = new LinkedHashMap<>();
+                if (!cleanToken.isEmpty() && cleanToken.length() >= 20) {
+                    dlHeaders.put("Authorization", "Token " + cleanToken);
+                }
+                String resp = PixAiApiHelper.httpRequestWithHeaders(dlUrl, "GET", dlHeaders.isEmpty() ? null : dlHeaders, null, null, 15);
                 List<String> urls = extractProxiesFromCommandOrText(resp);
                 for (String u : urls) {
                     ParsedProxy pp = parseProxyString(u);
@@ -529,12 +577,11 @@ public class SecurityShieldManager {
                         result.add(info);
                     }
                 }
-                return result;
+                if (!result.isEmpty()) return result;
             }
         }
 
-        // Trường hợp 3: Chuỗi truyền vào là Webshare API Token (VD: 40 ký tự chữ-số hoặc "Token xxx")
-        String cleanToken = trimmed.replaceFirst("(?i)^Token\\s+", "").replaceFirst("(?i)^Bearer\\s+", "").trim();
+        // Trường hợp 3: Chuỗi truyền vào là Webshare API Token (hoặc trích từ lệnh curl)
         if (cleanToken.matches("^[a-zA-Z0-9_\\-]{20,64}$")) {
             if (log != null) log.log("🔑 Đang gọi API Webshare v2 để lấy danh sách 10 Proxy Free...", "#60A5FA");
             Map<String, String> headers = new LinkedHashMap<>();
@@ -543,9 +590,9 @@ public class SecurityShieldManager {
             headers.put("Origin", "https://dashboard.webshare.io");
             headers.put("Referer", "https://dashboard.webshare.io/");
 
-            String listUrl = "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=25";
+            String listUrl = "https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=100";
             for (int attempt = 0; attempt < 6; attempt++) {
-                String resp = PixAiApiHelper.httpRequestWithHeaders(listUrl, "GET", headers, null, null, 12);
+                String resp = PixAiApiHelper.httpRequestWithHeaders(listUrl, "GET", headers, null, null, 15);
                 if (resp != null && resp.contains("\"results\"")) {
                     result = parseWebshareProxyListJson(resp);
                     if (!result.isEmpty()) {
