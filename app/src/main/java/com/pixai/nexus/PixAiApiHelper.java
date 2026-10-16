@@ -157,7 +157,7 @@ public class PixAiApiHelper {
      * Thực thi HTTP/HTTPS qua Socket Tunnel (HTTP CONNECT / SOCKS5) chuẩn xác từ bản pixai-android 2.0.0.
      * Bỏ qua hoàn toàn giới hạn HttpURLConnection của Android, hỗ trợ 100% Webshare proxy basic auth và SOCKS5.
      */
-    public static String executeSocketHttpRequest(
+    public static String executeSocketHttpRequestBytes(
             String urlStr,
             String method,
             Map<String, String> customHeaders,
@@ -252,7 +252,7 @@ public class PixAiApiHelper {
             SecurityShieldManager.ParsedProxy pp,
             int timeoutSec) {
         byte[] bodyBytes = (body != null && !body.isEmpty()) ? body.getBytes(StandardCharsets.UTF_8) : null;
-        return executeSocketHttpRequest(urlStr, method, customHeaders, bodyBytes, pp, timeoutSec);
+        return executeSocketHttpRequestBytes(urlStr, method, customHeaders, bodyBytes, pp, timeoutSec);
     }
 
     private static String readAsciiLine(InputStream is) throws Exception {
@@ -330,7 +330,7 @@ public class PixAiApiHelper {
         return new String(bodyOut.toByteArray(), StandardCharsets.UTF_8);
     }
 
-    public static String httpRequestWithHeaders(
+    public static String httpRequestWithHeadersBytes(
             String urlStr,
             String method,
             Map<String, String> customHeaders,
@@ -341,7 +341,7 @@ public class PixAiApiHelper {
                 ? proxyStr.trim()
                 : (SecurityShieldManager.isUseUpstreamProxy() ? SecurityShieldManager.getActiveUpstreamProxyRaw() : "");
 
-        String res = executeRequestInternal(urlStr, method, customHeaders, bodyBytes, effectiveProxy, timeoutSec);
+        String res = executeRequestInternalBytes(urlStr, method, customHeaders, bodyBytes, effectiveProxy, timeoutSec);
 
         if (effectiveProxy != null && !effectiveProxy.isEmpty() && isErrorResponse(res)) {
             String lastTried = effectiveProxy;
@@ -351,11 +351,11 @@ public class PixAiApiHelper {
                     break;
                 }
                 lastTried = altProxy;
-                res = executeRequestInternal(urlStr, method, customHeaders, bodyBytes, altProxy, timeoutSec);
+                res = executeRequestInternalBytes(urlStr, method, customHeaders, bodyBytes, altProxy, timeoutSec);
             }
 
             if (isErrorResponse(res) && SecurityShieldManager.isFallbackDirectAllowed()) {
-                res = executeRequestInternal(urlStr, method, customHeaders, bodyBytes, "", timeoutSec);
+                res = executeRequestInternalBytes(urlStr, method, customHeaders, bodyBytes, "", timeoutSec);
             }
         }
         return res != null ? res : "";
@@ -369,14 +369,14 @@ public class PixAiApiHelper {
             String proxyStr,
             int timeoutSec) {
         byte[] bodyBytes = (body != null && !body.isEmpty()) ? body.getBytes(StandardCharsets.UTF_8) : null;
-        return httpRequestWithHeaders(urlStr, method, customHeaders, bodyBytes, proxyStr, timeoutSec);
+        return httpRequestWithHeadersBytes(urlStr, method, customHeaders, bodyBytes, proxyStr, timeoutSec);
     }
 
     private static boolean isErrorResponse(String res) {
         return res == null || res.isEmpty() || res.startsWith("{\"error\":");
     }
 
-    private static String executeRequestInternal(
+    private static String executeRequestInternalBytes(
             String urlStr,
             String method,
             Map<String, String> customHeaders,
@@ -385,7 +385,7 @@ public class PixAiApiHelper {
             int timeoutSec) {
         SecurityShieldManager.ParsedProxy pp = SecurityShieldManager.parseProxyString(proxyStr);
         if (pp != null) {
-            return executeSocketHttpRequest(urlStr, method, customHeaders, bodyBytes, pp, timeoutSec);
+            return executeSocketHttpRequestBytes(urlStr, method, customHeaders, bodyBytes, pp, timeoutSec);
         }
 
         HttpURLConnection conn = null;
@@ -1011,7 +1011,7 @@ public class PixAiApiHelper {
         // Bước 2: Đẩy dữ liệu ảnh nhị phân lên AWS S3 qua Socket Tunnel
         Map<String, String> s3Headers = new LinkedHashMap<>();
         s3Headers.put("Content-Type", "image/jpeg");
-        String s3Resp = httpRequestWithHeaders(uploadUrl, "PUT", s3Headers, imageBytes, proxyStr, 35);
+        String s3Resp = httpRequestWithHeadersBytes(uploadUrl, "PUT", s3Headers, imageBytes, proxyStr, 35);
         if (s3Resp != null && s3Resp.startsWith("{\"error\":")) {
             throw new Exception("Lỗi tải ảnh lên S3: " + s3Resp);
         }
@@ -1102,7 +1102,7 @@ public class PixAiApiHelper {
                 headers.put("Content-Type", "application/json");
                 headers.put("Accept", "application/json");
                 String body = "{\"min_name_length\":10,\"max_name_length\":10}";
-                String resp = httpRequestWithHeaders(TEMP_MAIL_IO_URL + "/api/v3/email/new", "POST", headers, body.getBytes(StandardCharsets.UTF_8), proxyStr, 10);
+                String resp = httpRequestWithHeaders(TEMP_MAIL_IO_URL + "/api/v3/email/new", "POST", headers, body, proxyStr, 10);
                 if (resp != null && resp.contains("\"email\"")) {
                     JSONObject obj = new JSONObject(resp);
                     String email = obj.optString("email", "").trim();
@@ -1128,7 +1128,7 @@ public class PixAiApiHelper {
 
         for (int attempt = 1; attempt <= 2; attempt++) {
             try {
-                String res = httpRequestWithHeaders(TEMP_MAIL_ORG_URL + "/mailbox", "POST", headers, "{}".getBytes(StandardCharsets.UTF_8), proxyStr, 6);
+                String res = httpRequestWithHeaders(TEMP_MAIL_ORG_URL + "/mailbox", "POST", headers, "{}", proxyStr, 6);
                 if (res != null && res.contains("\"mailbox\"") && res.contains("\"token\"")) {
                     String mailbox = "";
                     String token = "";
