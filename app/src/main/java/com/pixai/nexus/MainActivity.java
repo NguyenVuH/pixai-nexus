@@ -1044,8 +1044,9 @@ public class MainActivity extends AppCompatActivity {
         ProgressBar pb = card.findViewById(R.id.pbTaskProgress);
         LinearLayout layoutTaskImagesFeed = card.findViewById(R.id.layoutTaskImagesFeed);
 
-        String tidShort = item.getTaskId();
-        if (tidShort.length() > 8) tidShort = tidShort.substring(tidShort.length() - 8);
+        final String tidShort = (item.getTaskId() != null && item.getTaskId().length() > 8)
+                ? item.getTaskId().substring(item.getTaskId().length() - 8)
+                : (item.getTaskId() != null ? item.getTaskId() : "N/A");
         tvHeader.setText("Task #" + tidShort + " • " + item.getProfile().toUpperCase() + " • " + item.getWidth() + "x" + item.getHeight());
         tvPrompt.setText(item.getOriginalPrompt());
         if (tvFullOriginal != null) tvFullOriginal.setText(item.getOriginalPrompt());
