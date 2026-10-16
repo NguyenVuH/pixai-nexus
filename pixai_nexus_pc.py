@@ -1747,6 +1747,36 @@ class PixAiNexusStudio(tk.Tk):
         self.btn_generate.config(state="normal")
         self.lbl_gen_step.config(text="Khởi tạo hoàn tất 100%! Tác vụ thành công.", fg=self.c_success)
 
+    def copy_server_prompt(self):
+        text = getattr(self, "last_server_prompt", "") or ""
+        if not text and hasattr(self, "lbl_server_prompt"):
+            lbl_txt = self.lbl_server_prompt.cget("text")
+            if lbl_txt and lbl_txt != "Chưa có":
+                text = lbl_txt
+        if text:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.log_message("Đã sao chép Prompt Server Tối Ưu vào clipboard.", "success")
+            messagebox.showinfo("Sao Chép", "Đã sao chép Prompt Server Tối Ưu vào bộ nhớ tạm!")
+        else:
+            messagebox.showinfo("Thông báo", "Chưa có Prompt Server nào để sao chép.")
+
+    def copy_orig_prompt(self):
+        text = getattr(self, "last_original_prompt", "") or ""
+        if not text and hasattr(self, "lbl_orig_prompt"):
+            lbl_txt = self.lbl_orig_prompt.cget("text")
+            if lbl_txt and lbl_txt != "Chưa có":
+                text = lbl_txt
+        if not text and hasattr(self, "txt_prompt"):
+            text = self.txt_prompt.get("1.0", "end").strip()
+        if text:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.log_message("Đã sao chép Prompt Gốc vào clipboard.", "success")
+            messagebox.showinfo("Sao Chép", "Đã sao chép Prompt Gốc vào bộ nhớ tạm!")
+        else:
+            messagebox.showinfo("Thông báo", "Chưa có Prompt nào để sao chép.")
+
     def display_batch_images_in_feed(self, urls, orig_prompt="", server_prompt=""):
         if not urls:
             return
