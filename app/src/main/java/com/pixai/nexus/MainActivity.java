@@ -2277,7 +2277,6 @@ public class MainActivity extends AppCompatActivity {
             LinearLayout layoutHistoryImagesFeed = convertView.findViewById(R.id.layoutHistoryImagesFeed);
             TextView tvFullOriginal = convertView.findViewById(R.id.tvHistoryFullOriginalPrompt);
             TextView tvFullServer = convertView.findViewById(R.id.tvHistoryFullServerPrompt);
-            Button btnCopy = convertView.findViewById(R.id.btnHistoryCopyPrompt);
 
             tvPrompt.setText(item.getOriginalPrompt());
             tvDate.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date(item.getTimestamp())));
