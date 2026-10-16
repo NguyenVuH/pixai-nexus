@@ -134,14 +134,28 @@
             android:textColor="#888888"
             android:textSize="10sp" />
 
-        <TextView
-            android:id="@+id/tvTaskFullOriginal"
+        <ScrollView
+            android:id="@+id/scrollTaskFullOriginal"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_height="76dp"
+            android:layout_marginTop="3dp"
             android:layout_marginBottom="6dp"
-            android:textColor="#E0E0E0"
-            android:textSize="11sp" />
+            android:background="@drawable/bg_prompt_box"
+            android:nestedScrollingEnabled="true"
+            android:overScrollMode="never"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="7dp"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/tvTaskFullOriginal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="2dp"
+                android:textColor="#E0E0E0"
+                android:textIsSelectable="true"
+                android:textSize="11sp" />
+        </ScrollView>
 
         <LinearLayout
             android:id="@+id/btnTaskCopyOriginal"
@@ -177,15 +191,29 @@
             android:textColor="#888888"
             android:textSize="10sp" />
 
-        <TextView
-            android:id="@+id/tvTaskFullServer"
+        <ScrollView
+            android:id="@+id/scrollTaskFullServer"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
+            android:layout_height="76dp"
+            android:layout_marginTop="3dp"
             android:layout_marginBottom="6dp"
-            android:text="Đang chờ GPU kết xuất..."
-            android:textColor="#81C784"
-            android:textSize="11sp" />
+            android:background="@drawable/bg_prompt_box"
+            android:nestedScrollingEnabled="true"
+            android:overScrollMode="never"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="7dp"
+            android:scrollbars="vertical">
+
+            <TextView
+                android:id="@+id/tvTaskFullServer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:lineSpacingExtra="2dp"
+                android:text="Đang chờ GPU kết xuất..."
+                android:textColor="#81C784"
+                android:textIsSelectable="true"
+                android:textSize="11sp" />
+        </ScrollView>
 
         <LinearLayout
             android:id="@+id/btnTaskCopyServer"

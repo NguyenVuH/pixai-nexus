@@ -1083,6 +1083,16 @@ public class MainActivity extends AppCompatActivity {
             });
         }
 
+        // Ô cuộn Prompt gốc và Prompt tối ưu
+        ScrollView scrollOrig = card.findViewById(R.id.scrollTaskFullOriginal);
+        ScrollView scrollServ = card.findViewById(R.id.scrollTaskFullServer);
+        View.OnTouchListener disallowParentTouch = (v, event) -> {
+            v.getParent().requestDisallowInterceptTouchEvent(true);
+            return false;
+        };
+        if (scrollOrig != null) scrollOrig.setOnTouchListener(disallowParentTouch);
+        if (scrollServ != null) scrollServ.setOnTouchListener(disallowParentTouch);
+
         // Xóa phiên khỏi hàng đợi tiến trình
         View btnDeleteTask = card.findViewById(R.id.btnTaskDeleteSession);
         View btnDeleteTaskExp = card.findViewById(R.id.btnTaskDeleteExpanded);
@@ -1149,11 +1159,7 @@ public class MainActivity extends AppCompatActivity {
                             tvFullServer.setTextColor(0xFF81C784);
                         }
 
-                        // Tự động mở rộng phiên để hiển thị đầy đủ hình ảnh kết quả ngay tại phiên
-                        isExp[0] = true;
-                        if (layoutExpanded != null) layoutExpanded.setVisibility(View.VISIBLE);
-                        if (tvExpandText != null) tvExpandText.setText("Thu Gọn");
-                        if (ivExpandToggle != null) ivExpandToggle.setImageResource(R.drawable.ic_collapse);
+                        // Giữ nguyên trạng thái phiên hiện tại (không tự động ép mở rộng)
 
                         // Hiển thị danh sách ảnh đầy đủ ngay trong thẻ phiên (layoutTaskImagesFeed)
                         if (layoutTaskImagesFeed != null) {
@@ -2160,6 +2166,15 @@ public class MainActivity extends AppCompatActivity {
                     tvFullServer.setText(sPrompt);
                     tvFullServer.setTextColor(0xFF81C784);
                 }
+
+                ScrollView scrollHistOrig = convertView.findViewById(R.id.scrollHistoryFullOriginal);
+                ScrollView scrollHistServ = convertView.findViewById(R.id.scrollHistoryFullServer);
+                View.OnTouchListener disallowParentTouch = (v, event) -> {
+                    v.getParent().requestDisallowInterceptTouchEvent(true);
+                    return false;
+                };
+                if (scrollHistOrig != null) scrollHistOrig.setOnTouchListener(disallowParentTouch);
+                if (scrollHistServ != null) scrollHistServ.setOnTouchListener(disallowParentTouch);
 
                 // Hiển thị danh sách từng ảnh riêng biệt trong lịch sử
                 if (layoutHistoryImagesFeed != null) {
