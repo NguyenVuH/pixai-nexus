@@ -1420,14 +1420,40 @@ class PixAiNexusStudio(tk.Tk):
                         self.after(0, lambda s=elapsed: lbl_badge.config(text=f"Đang chờ GPU ({s}s)...", fg=self.c_warning))
                     elif status == "completed":
                         server_prompt = t_node.get("parameters", {}).get("prompts", hist_item["originalPrompt"])
-                        seed = t_node.get("outputs", {}).get("seed", 0)
+                        outputs = t_node.get("outputs", {})
+                        seed = outputs.get("seed", 0)
                         urls = []
-                        media = t_node.get("media", {})
-                        for u in media.get("urls", []):
-                            if u.get("variant", "").upper() == "PUBLIC":
-                                urls.append(u.get("url"))
-                        if not urls and media.get("urls"):
-                            urls.append(media["urls"][0].get("url"))
+
+                        # Trích xuất danh sách các ảnh độc lập từ outputs.batch khi tạo 4 ảnh
+                        batch = outputs.get("batch")
+                        if batch and isinstance(batch, list) and len(batch) > 0:
+                            m_ids = [b.get("mediaId") for b in batch if b.get("mediaId")]
+                            if m_ids:
+                                query_parts = [f"  m{i}: media(id: $id{i}) {{ urls {{ variant url }} }}" for i in range(len(m_ids))]
+                                vars_def = [f"$id{i}: String!" for i in range(len(m_ids))]
+                                vars_dict = {f"id{i}": m_ids[i] for i in range(len(m_ids))}
+                                batch_query = f"query getBatchMedias({', '.join(vars_def)}) {{\n" + "\n".join(query_parts) + "\n}"
+                                try:
+                                    b_res = http_graphql({"query": batch_query, "variables": vars_dict}, token, proxy=proxy, timeout=15)
+                                    b_data = b_res.get("data", {})
+                                    for i in range(len(m_ids)):
+                                        m_info = b_data.get(f"m{i}", {})
+                                        m_urls = m_info.get("urls", [])
+                                        pub_url = next((u["url"] for u in m_urls if u.get("variant", "").upper() == "PUBLIC"), None)
+                                        if not pub_url and m_urls:
+                                            pub_url = m_urls[0].get("url")
+                                        if pub_url:
+                                            urls.append(pub_url)
+                                except Exception:
+                                    pass
+
+                        if not urls:
+                            media = t_node.get("media", {})
+                            for u in media.get("urls", []):
+                                if u.get("variant", "").upper() == "PUBLIC":
+                                    urls.append(u.get("url"))
+                            if not urls and media.get("urls"):
+                                urls.append(media["urls"][0].get("url"))
 
                         # Cập nhật lịch sử mã hóa
                         hist_item["status"] = "COMPLETED"

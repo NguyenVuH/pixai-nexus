@@ -213,7 +213,14 @@ public class PixAiApiHelper {
             val.put("isAdult", true);
             val.put("adult", true);
             val.put("ageConfirmed", true);
-            val.put("ageVerificationStatus", "VERIFIED");
+            val.put("ageVerificationStatus", "OVER18");
+            val.put("rating", "r18");
+            val.put("contentRating", "ADULT");
+            val.put("birthday", "1998-05-20");
+            val.put("age", 26);
+            val.put("year", 1998);
+            val.put("month", 5);
+            val.put("day", 20);
             val.put("isNsfw", true);
             val.put("showNsfw", true);
             val.put("blurNsfw", false);
@@ -511,10 +518,20 @@ public class PixAiApiHelper {
 
             JSONArray errors = createRes.optJSONArray("errors");
             if (errors != null && errors.length() > 0) {
-                String errMsg = errors.getJSONObject(0).optString("message", "");
+                JSONObject err0 = errors.getJSONObject(0);
+                String errMsg = err0.optString("message", "");
+                JSONObject extObj = err0.optJSONObject("extensions");
+                JSONObject excObj = extObj != null ? extObj.optJSONObject("exception") : null;
+                String excName = excObj != null ? excObj.optString("name", "") : "";
+                int excCode = excObj != null ? excObj.optInt("code", 0) : 0;
+
                 if (errMsg.toLowerCase().contains("insufficient balance") || errMsg.toLowerCase().contains("balance")) {
                     result.insufficientBalance = true;
                     result.errorMessage = "Tài khoản không đủ Credit để tạo ảnh";
+                    return result;
+                }
+                if (excCode == 40300019 || "NSFW_PROMPTS_DETECTED".equalsIgnoreCase(excName) || errMsg.contains("policy") || errMsg.contains("adult")) {
+                    result.errorMessage = "Máy chủ PixAI chặn từ khóa vi phạm chính sách kiểm duyệt. Gợi ý: Hãy dùng từ gợi cảm nghệ thuật như 'cleavage, bikini, lingerie, wet skin, bare shoulders' thay vì từ cấm trực tiếp!";
                     return result;
                 }
                 result.errorMessage = "Máy chủ PixAI báo lỗi: " + errMsg;
@@ -587,20 +604,90 @@ public class PixAiApiHelper {
                     JSONObject oObj = tNode.optJSONObject("outputs");
                     if (oObj != null) {
                         result.seed = oObj.optLong("seed", 0);
-                    }
 
-                    JSONObject media = tNode.optJSONObject("media");
-                    if (media != null) {
-                        JSONArray urls = media.optJSONArray("urls");
-                        if (urls != null) {
-                            for (int i = 0; i < urls.length(); i++) {
-                                JSONObject u = urls.getJSONObject(i);
-                                if ("PUBLIC".equalsIgnoreCase(u.optString("variant"))) {
-                                    result.imageUrls.add(u.optString("url"));
+                        // Trích xuất danh sách mediaId riêng lẻ khi tạo nhiều ảnh (Batch 4)
+                        JSONArray batch = oObj.optJSONArray("batch");
+                        if (batch != null && batch.length() > 0) {
+                            List<String> mediaIds = new ArrayList<>();
+                            for (int i = 0; i < batch.length(); i++) {
+                                JSONObject bItem = batch.optJSONObject(i);
+                                if (bItem != null) {
+                                    String mId = bItem.optString("mediaId", "");
+                                    if (!mId.isEmpty()) {
+                                        mediaIds.add(mId);
+                                    }
                                 }
                             }
-                            if (result.imageUrls.isEmpty() && urls.length() > 0) {
-                                result.imageUrls.add(urls.getJSONObject(0).optString("url"));
+
+                            if (!mediaIds.isEmpty()) {
+                                StringBuilder qSb = new StringBuilder();
+                                qSb.append("query getBatchMedias(");
+                                for (int i = 0; i < mediaIds.size(); i++) {
+                                    if (i > 0) qSb.append(", ");
+                                    qSb.append("$id").append(i).append(": String!");
+                                }
+                                qSb.append(") {\n");
+                                for (int i = 0; i < mediaIds.size(); i++) {
+                                    qSb.append("  m").append(i).append(": media(id: $id").append(i).append(") { urls { variant url } }\n");
+                                }
+                                qSb.append("}");
+
+                                JSONObject bPayload = new JSONObject();
+                                bPayload.put("query", qSb.toString());
+                                JSONObject bVars = new JSONObject();
+                                for (int i = 0; i < mediaIds.size(); i++) {
+                                    bVars.put("id" + i, mediaIds.get(i));
+                                }
+                                bPayload.put("variables", bVars);
+
+                                try {
+                                    JSONObject bRes = sendGraphQL(bPayload, token, proxyStr);
+                                    JSONObject bData = bRes.optJSONObject("data");
+                                    if (bData != null) {
+                                        for (int i = 0; i < mediaIds.size(); i++) {
+                                            JSONObject mObj = bData.optJSONObject("m" + i);
+                                            if (mObj != null) {
+                                                JSONArray urls = mObj.optJSONArray("urls");
+                                                if (urls != null) {
+                                                    String pubUrl = null;
+                                                    for (int u = 0; u < urls.length(); u++) {
+                                                        JSONObject uObj = urls.optJSONObject(u);
+                                                        if (uObj != null && "PUBLIC".equalsIgnoreCase(uObj.optString("variant"))) {
+                                                            pubUrl = uObj.optString("url");
+                                                            break;
+                                                        }
+                                                    }
+                                                    if (pubUrl == null && urls.length() > 0) {
+                                                        JSONObject uObj = urls.optJSONObject(0);
+                                                        if (uObj != null) pubUrl = uObj.optString("url");
+                                                    }
+                                                    if (pubUrl != null && !pubUrl.isEmpty()) {
+                                                        result.imageUrls.add(pubUrl);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+
+                    // Fallback nếu không có batch: Lấy ảnh đơn từ node media
+                    if (result.imageUrls.isEmpty()) {
+                        JSONObject media = tNode.optJSONObject("media");
+                        if (media != null) {
+                            JSONArray urls = media.optJSONArray("urls");
+                            if (urls != null) {
+                                for (int i = 0; i < urls.length(); i++) {
+                                    JSONObject u = urls.getJSONObject(i);
+                                    if ("PUBLIC".equalsIgnoreCase(u.optString("variant"))) {
+                                        result.imageUrls.add(u.optString("url"));
+                                    }
+                                }
+                                if (result.imageUrls.isEmpty() && urls.length() > 0) {
+                                    result.imageUrls.add(urls.getJSONObject(0).optString("url"));
+                                }
                             }
                         }
                     }

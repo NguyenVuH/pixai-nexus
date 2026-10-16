@@ -1370,6 +1370,107 @@
                             android:layout_height="wrap_content"
                             android:layout_marginTop="10dp"
                             android:orientation="vertical" />
+
+                        <!-- Thông Tin Prompt & Nút Sao Chép Độc Lập -->
+                        <LinearLayout
+                            android:id="@+id/layoutPromptEmbeddedInfo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="12dp"
+                            android:orientation="vertical">
+
+                            <View
+                                android:layout_width="match_parent"
+                                android:layout_height="1dp"
+                                android:layout_marginBottom="10dp"
+                                android:background="#222222" />
+
+                            <!-- Prompt Gốc -->
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Prompt Gốc:"
+                                android:textColor="#888888"
+                                android:textSize="10sp" />
+
+                            <TextView
+                                android:id="@+id/tvEmbeddedOriginalPrompt"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:layout_marginBottom="6dp"
+                                android:textColor="#E0E0E0"
+                                android:textSize="11sp" />
+
+                            <LinearLayout
+                                android:id="@+id/btnEmbeddedCopyOriginal"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="10dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="horizontal"
+                                android:paddingVertical="7dp">
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:layout_marginEnd="6dp"
+                                    android:src="@drawable/ic_copy" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sao Chép Prompt Gốc"
+                                    android:textColor="#E0E0E0"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
+
+                            <!-- Prompt Máy Chủ Tối Ưu -->
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="Prompt Máy Chủ Tối Ưu:"
+                                android:textColor="#888888"
+                                android:textSize="10sp" />
+
+                            <TextView
+                                android:id="@+id/tvEmbeddedServerPrompt"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:layout_marginBottom="6dp"
+                                android:textColor="#81C784"
+                                android:textSize="11sp" />
+
+                            <LinearLayout
+                                android:id="@+id/btnEmbeddedCopyServer"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="4dp"
+                                android:background="@drawable/bg_cyber_chip_normal"
+                                android:clickable="true"
+                                android:focusable="true"
+                                android:gravity="center"
+                                android:orientation="horizontal"
+                                android:paddingVertical="7dp">
+
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:layout_marginEnd="6dp"
+                                    android:src="@drawable/ic_copy" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sao Chép Prompt Tối Ưu"
+                                    android:textColor="#81C784"
+                                    android:textSize="11sp" />
+                            </LinearLayout>
+                        </LinearLayout>
                     </LinearLayout>
                 </LinearLayout>
 
