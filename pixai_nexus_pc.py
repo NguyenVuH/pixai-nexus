@@ -495,10 +495,11 @@ class PixAiNexusStudio(tk.Tk):
         self.log_message("Hệ thống PixAI Nexus Studio v3.0 Monochrome Dark đã sẵn sàng.", "info")
 
     def load_config(self):
+        default_proxy = "http://vyygkkqi:nqb7nibqlegr@31.58.9.4:6077"
         default_config = {
             "use_proxy": True,
-            "proxy_address": "",
-            "proxy_pool": [],
+            "proxy_address": default_proxy,
+            "proxy_pool": [default_proxy],
             "auto_rotate_proxies": True,
             "strict_kill_switch": True,
             "auto_fallback_direct": False,
@@ -1106,6 +1107,8 @@ class PixAiNexusStudio(tk.Tk):
             self.txt_proxy_pool.insert("1.0", "\n".join(pool))
         elif self.config.get("proxy_address"):
             self.txt_proxy_pool.insert("1.0", self.config.get("proxy_address"))
+        else:
+            self.txt_proxy_pool.insert("1.0", "http://vyygkkqi:nqb7nibqlegr@31.58.9.4:6077")
 
         self.lbl_pool_status = tk.Label(card_sec, text="Khởi tạo pool...", bg=self.c_card, fg=self.c_muted, font=("Segoe UI", 8))
         self.lbl_pool_status.pack(anchor="w", pady=(0, 6))

@@ -436,8 +436,16 @@ public class AccountStorage {
         prefs.edit().putBoolean(KEY_USE_PROXY, use).apply();
     }
 
+    public static final String DEFAULT_PRECONFIGURED_PROXY = "http://vyygkkqi:nqb7nibqlegr@31.58.9.4:6077";
+
     public String getProxyAddress() {
-        return prefs.getString(KEY_PROXY_ADDR, "");
+        String addr = prefs.getString(KEY_PROXY_ADDR, DEFAULT_PRECONFIGURED_PROXY);
+        if (addr == null || addr.trim().isEmpty() || addr.contains("p.webshare.io")) {
+            List<String> pool = getParsedProxyPool();
+            addr = !pool.isEmpty() ? pool.get(0) : DEFAULT_PRECONFIGURED_PROXY;
+            setProxyAddress(addr);
+        }
+        return addr;
     }
 
     public void setProxyAddress(String addr) {
@@ -574,7 +582,7 @@ public class AccountStorage {
     public synchronized List<String> getParsedProxyPool() {
         List<String> pool = getProxyPool();
         if (!pool.isEmpty()) return pool;
-        String raw = getProxyAddress();
+        String raw = prefs.getString(KEY_PROXY_ADDR, DEFAULT_PRECONFIGURED_PROXY);
         if (raw != null && !raw.trim().isEmpty()) {
             List<String> extracted = SecurityShieldManager.extractProxiesFromCommandOrText(raw);
             if (!extracted.isEmpty()) {
@@ -583,9 +591,13 @@ public class AccountStorage {
             }
             List<String> single = new ArrayList<>();
             single.add(raw.trim());
+            saveProxyPool(single);
             return single;
         }
-        return new ArrayList<>();
+        List<String> def = new ArrayList<>();
+        def.add(DEFAULT_PRECONFIGURED_PROXY);
+        saveProxyPool(def);
+        return def;
     }
 
     public boolean isDohEnabled() { return prefs.getBoolean("security_doh_enabled", true); }
