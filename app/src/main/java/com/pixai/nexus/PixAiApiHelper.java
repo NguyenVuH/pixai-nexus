@@ -14,16 +14,22 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SSLParameters;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
 
 public class PixAiApiHelper {
 
@@ -118,88 +124,313 @@ public class PixAiApiHelper {
     }
 
     public static HttpURLConnection openConnectionWithProxy(URL url, String proxyStr) throws Exception {
-        if (proxyStr == null || proxyStr.trim().isEmpty()) {
+        if (proxyStr == null || proxyStr.trim().isEmpty() || !SecurityShieldManager.isUseUpstreamProxy()) {
             return (HttpURLConnection) url.openConnection();
         }
-
-        try {
-            SecurityShieldManager.ParsedProxy pp = SecurityShieldManager.parseProxyString(proxyStr);
-            if (pp != null) {
-                SecurityShieldManager.registerProxyCredentials(pp);
-                Proxy.Type pType = pp.isSocks5 ? Proxy.Type.SOCKS : Proxy.Type.HTTP;
-                // createUnresolved: giải quyết DNS từ xa qua Proxy, chống lộ DNS cho nhà mạng
-                SocketAddress sa = InetSocketAddress.createUnresolved(pp.host, pp.port);
-                Proxy proxy = new Proxy(pType, sa);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection(proxy);
-
-                if (pp.user != null && !pp.user.isEmpty()) {
-                    String userPass = pp.user + ":" + (pp.pass != null ? pp.pass : "");
-                    String authHeader = "Basic " + Base64.encodeToString(userPass.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP).trim();
-                    conn.setRequestProperty("Proxy-Authorization", authHeader);
-                }
-                return conn;
-            }
-        } catch (Exception ignored) {}
+        SecurityShieldManager.ensureLocalTunnelRunning();
+        int localPort = SecurityShieldManager.getLocalTunnelPort();
+        if (localPort > 0) {
+            Proxy localProxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", localPort));
+            return (HttpURLConnection) url.openConnection(localProxy);
+        }
         return (HttpURLConnection) url.openConnection();
     }
 
     public static JSONObject sendGraphQL(JSONObject payload, String token, String proxyStr) throws Exception {
-        Exception lastEx = null;
-        String curProxy = proxyStr;
-        for (int attempt = 0; attempt < 3; attempt++) {
-            try {
-                return sendGraphQLInternal(payload, token, curProxy);
-            } catch (Exception e) {
-                lastEx = e;
-                if (curProxy != null && !curProxy.trim().isEmpty()) {
-                    String nextProxy = SecurityShieldManager.getNextWorkingProxyCandidate(curProxy);
-                    if (nextProxy != null && !nextProxy.equalsIgnoreCase(curProxy)) {
-                        curProxy = nextProxy;
-                        continue;
-                    }
-                }
-                break;
-            }
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Content-Type", "application/json");
+        headers.put("Accept", "application/graphql-response+json,application/json;q=0.9");
+        headers.put("Origin", "https://pixai.art");
+        headers.put("Referer", "https://pixai.art/");
+        if (token != null && !token.trim().isEmpty()) {
+            headers.put("Authorization", "Bearer " + token.trim());
         }
-        if (SecurityShieldManager.isFallbackDirectAllowed()) {
-            return sendGraphQLInternal(payload, token, null);
+        String body = payload != null ? payload.toString() : "";
+        String resp = httpRequestWithHeaders(GRAPHQL_URL, "POST", headers, body, proxyStr, 25);
+        if (resp == null || resp.trim().isEmpty() || resp.startsWith("{\"error\":")) {
+            throw new java.io.IOException("Proxy Shield: Không thể kết nối qua Proxy (" + resp + ")");
         }
-        if (lastEx != null) throw lastEx;
-        throw new java.io.IOException("Proxy Shield: Toàn bộ Proxy trong kho không phản hồi. Đã kích hoạt Kill-Switch ngắt kết nối an toàn để bảo vệ IP thật của bạn.");
+        return new JSONObject(resp.trim());
     }
 
-    private static JSONObject sendGraphQLInternal(JSONObject payload, String token, String proxyStr) throws Exception {
-        URL url = new URL(GRAPHQL_URL);
-        HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
-
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Content-Type", "application/json");
-        conn.setRequestProperty("Accept", "application/graphql-response+json,application/json;q=0.9");
-        conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-        if (token != null && !token.trim().isEmpty()) {
-            conn.setRequestProperty("Authorization", "Bearer " + token.trim());
+    /**
+     * Thực thi HTTP/HTTPS qua Socket Tunnel (HTTP CONNECT / SOCKS5) chuẩn xác từ bản pixai-android 2.0.0.
+     * Bỏ qua hoàn toàn giới hạn HttpURLConnection của Android, hỗ trợ 100% Webshare proxy basic auth và SOCKS5.
+     */
+    public static String executeSocketHttpRequest(
+            String urlStr,
+            String method,
+            Map<String, String> customHeaders,
+            byte[] bodyBytes,
+            SecurityShieldManager.ParsedProxy pp,
+            int timeoutSec) {
+        if (pp == null && SecurityShieldManager.isStrictKillSwitchActive() && !SecurityShieldManager.isFallbackDirectAllowed()) {
+            return "{\"error\":\"Kill-Switch: Đã khóa mạng trực tiếp để bảo vệ IP gốc\"}";
         }
-        conn.setConnectTimeout(20000);
-        conn.setReadTimeout(30000);
-        conn.setDoOutput(true);
+        Socket rawSocket = null;
+        SSLSocket sslSocket = null;
+        try {
+            URL url = new URL(urlStr);
+            boolean isHttps = "https".equalsIgnoreCase(url.getProtocol());
+            String host = url.getHost();
+            int port = (url.getPort() > 0) ? url.getPort() : (isHttps ? 443 : 80);
+            String path = (url.getFile() == null || url.getFile().isEmpty()) ? "/" : url.getFile();
 
-        byte[] body = payload.toString().getBytes(StandardCharsets.UTF_8);
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(body);
-        }
+            OutputStream os;
+            InputStream is;
 
-        int code = conn.getResponseCode();
-        InputStream is = (code >= 200 && code < 300) ? conn.getInputStream() : conn.getErrorStream();
-        StringBuilder sb = new StringBuilder();
-        if (is != null) {
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line);
+            if (pp != null) {
+                rawSocket = SecurityShieldManager.openUpstreamProxyTunnel(pp, host, port);
+                rawSocket.setSoTimeout(timeoutSec * 1000);
+            } else {
+                rawSocket = new Socket();
+                rawSocket.setTcpNoDelay(true);
+                rawSocket.setSoTimeout(timeoutSec * 1000);
+                rawSocket.connect(new InetSocketAddress(host, port), Math.min(timeoutSec, 10) * 1000);
+            }
+
+            if (isHttps) {
+                SSLSocketFactory factory = (SSLSocketFactory) SSLSocketFactory.getDefault();
+                sslSocket = (SSLSocket) factory.createSocket(rawSocket, host, port, true);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    SSLParameters sslParams = sslSocket.getSSLParameters();
+                    sslParams.setServerNames(Collections.singletonList(new SNIHostName(host)));
+                    sslSocket.setSSLParameters(sslParams);
+                }
+                sslSocket.startHandshake();
+                os = sslSocket.getOutputStream();
+                is = sslSocket.getInputStream();
+            } else {
+                os = rawSocket.getOutputStream();
+                is = rawSocket.getInputStream();
+            }
+
+            StringBuilder req = new StringBuilder();
+            req.append(method != null ? method : "GET").append(" ").append(path).append(" HTTP/1.1\r\n");
+            req.append("Host: ").append(host).append("\r\n");
+            req.append("User-Agent: ").append(SecurityShieldManager.getCleanUserAgent()).append("\r\n");
+            req.append("Accept: application/json, text/plain, */*\r\n");
+            if (customHeaders != null) {
+                for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
+                    String k = entry.getKey();
+                    String v = entry.getValue();
+                    if (k != null && v != null && !k.equalsIgnoreCase("Host") && !k.equalsIgnoreCase("User-Agent") && !k.equalsIgnoreCase("Content-Length")) {
+                        req.append(k).append(": ").append(v).append("\r\n");
+                    }
                 }
             }
+            if (bodyBytes != null) {
+                if (customHeaders == null || !customHeaders.containsKey("Content-Type")) {
+                    req.append("Content-Type: application/json\r\n");
+                }
+                req.append("Content-Length: ").append(bodyBytes.length).append("\r\n");
+            } else if ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method)) {
+                req.append("Content-Length: 0\r\n");
+            }
+            req.append("Connection: close\r\n\r\n");
+
+            os.write(req.toString().getBytes(StandardCharsets.UTF_8));
+            if (bodyBytes != null && bodyBytes.length > 0) {
+                os.write(bodyBytes);
+            }
+            os.flush();
+
+            return readHttpResponseBody(is);
+        } catch (Exception e) {
+            return "{\"error\":\"" + e.getMessage() + "\"}";
+        } finally {
+            try { if (sslSocket != null) sslSocket.close(); } catch (Exception ignored) {}
+            try { if (rawSocket != null) rawSocket.close(); } catch (Exception ignored) {}
         }
-        return new JSONObject(sb.toString().trim());
+    }
+
+    public static String executeSocketHttpRequest(
+            String urlStr,
+            String method,
+            Map<String, String> customHeaders,
+            String body,
+            SecurityShieldManager.ParsedProxy pp,
+            int timeoutSec) {
+        byte[] bodyBytes = (body != null && !body.isEmpty()) ? body.getBytes(StandardCharsets.UTF_8) : null;
+        return executeSocketHttpRequest(urlStr, method, customHeaders, bodyBytes, pp, timeoutSec);
+    }
+
+    private static String readAsciiLine(InputStream is) throws Exception {
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream(128);
+        int b;
+        boolean gotAny = false;
+        while ((b = is.read()) != -1) {
+            gotAny = true;
+            if (b == '\n') break;
+            if (b != '\r') baos.write(b);
+        }
+        if (!gotAny && baos.size() == 0) return null;
+        return new String(baos.toByteArray(), StandardCharsets.ISO_8859_1);
+    }
+
+    private static String readHttpResponseBody(InputStream is) throws Exception {
+        String status = readAsciiLine(is);
+        if (status == null) return "";
+
+        boolean isChunked = false;
+        int contentLength = -1;
+        String headerLine;
+        while ((headerLine = readAsciiLine(is)) != null) {
+            if (headerLine.isEmpty()) break;
+            String lower = headerLine.toLowerCase(java.util.Locale.US);
+            if (lower.startsWith("content-length:")) {
+                try {
+                    contentLength = Integer.parseInt(headerLine.substring(15).trim());
+                } catch (Exception ignored) {}
+            } else if (lower.startsWith("transfer-encoding:") && lower.contains("chunked")) {
+                isChunked = true;
+            }
+        }
+
+        java.io.ByteArrayOutputStream bodyOut = new java.io.ByteArrayOutputStream();
+        if (contentLength >= 0) {
+            byte[] buf = new byte[4096];
+            int remaining = contentLength;
+            while (remaining > 0) {
+                int r = is.read(buf, 0, Math.min(buf.length, remaining));
+                if (r == -1) break;
+                bodyOut.write(buf, 0, r);
+                remaining -= r;
+            }
+        } else if (isChunked) {
+            byte[] buf = new byte[4096];
+            while (true) {
+                String chunkHeader = readAsciiLine(is);
+                if (chunkHeader == null) break;
+                chunkHeader = chunkHeader.trim();
+                if (chunkHeader.isEmpty()) continue;
+                int chunkSize;
+                try {
+                    chunkSize = Integer.parseInt(chunkHeader.split(";")[0].trim(), 16);
+                } catch (Exception e) {
+                    break;
+                }
+                if (chunkSize <= 0) break;
+                int remaining = chunkSize;
+                while (remaining > 0) {
+                    int r = is.read(buf, 0, Math.min(buf.length, remaining));
+                    if (r == -1) break;
+                    bodyOut.write(buf, 0, r);
+                    remaining -= r;
+                }
+                readAsciiLine(is);
+            }
+        } else {
+            byte[] buf = new byte[4096];
+            int r;
+            while ((r = is.read(buf)) != -1) {
+                bodyOut.write(buf, 0, r);
+            }
+        }
+        return new String(bodyOut.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    public static String httpRequestWithHeaders(
+            String urlStr,
+            String method,
+            Map<String, String> customHeaders,
+            byte[] bodyBytes,
+            String proxyStr,
+            int timeoutSec) {
+        String effectiveProxy = (proxyStr != null && !proxyStr.trim().isEmpty())
+                ? proxyStr.trim()
+                : (SecurityShieldManager.isUseUpstreamProxy() ? SecurityShieldManager.getActiveUpstreamProxyRaw() : "");
+
+        String res = executeRequestInternal(urlStr, method, customHeaders, bodyBytes, effectiveProxy, timeoutSec);
+
+        if (effectiveProxy != null && !effectiveProxy.isEmpty() && isErrorResponse(res)) {
+            String lastTried = effectiveProxy;
+            for (int attempt = 0; attempt < 3 && isErrorResponse(res); attempt++) {
+                String altProxy = SecurityShieldManager.getNextWorkingProxyCandidate(lastTried);
+                if (altProxy == null || altProxy.isEmpty() || altProxy.equalsIgnoreCase(lastTried)) {
+                    break;
+                }
+                lastTried = altProxy;
+                res = executeRequestInternal(urlStr, method, customHeaders, bodyBytes, altProxy, timeoutSec);
+            }
+
+            if (isErrorResponse(res) && SecurityShieldManager.isFallbackDirectAllowed()) {
+                res = executeRequestInternal(urlStr, method, customHeaders, bodyBytes, "", timeoutSec);
+            }
+        }
+        return res != null ? res : "";
+    }
+
+    public static String httpRequestWithHeaders(
+            String urlStr,
+            String method,
+            Map<String, String> customHeaders,
+            String body,
+            String proxyStr,
+            int timeoutSec) {
+        byte[] bodyBytes = (body != null && !body.isEmpty()) ? body.getBytes(StandardCharsets.UTF_8) : null;
+        return httpRequestWithHeaders(urlStr, method, customHeaders, bodyBytes, proxyStr, timeoutSec);
+    }
+
+    private static boolean isErrorResponse(String res) {
+        return res == null || res.isEmpty() || res.startsWith("{\"error\":");
+    }
+
+    private static String executeRequestInternal(
+            String urlStr,
+            String method,
+            Map<String, String> customHeaders,
+            byte[] bodyBytes,
+            String proxyStr,
+            int timeoutSec) {
+        SecurityShieldManager.ParsedProxy pp = SecurityShieldManager.parseProxyString(proxyStr);
+        if (pp != null) {
+            return executeSocketHttpRequest(urlStr, method, customHeaders, bodyBytes, pp, timeoutSec);
+        }
+
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod(method != null ? method : "GET");
+            conn.setRequestProperty("User-Agent", SecurityShieldManager.getCleanUserAgent());
+            conn.setRequestProperty("Accept", "application/json, text/plain, */*");
+            if (customHeaders != null) {
+                for (Map.Entry<String, String> entry : customHeaders.entrySet()) {
+                    if (entry.getKey() != null && entry.getValue() != null) {
+                        conn.setRequestProperty(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            conn.setConnectTimeout(timeoutSec * 1000);
+            conn.setReadTimeout(timeoutSec * 1000);
+
+            if (bodyBytes != null && bodyBytes.length > 0 && ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method))) {
+                conn.setDoOutput(true);
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(bodyBytes);
+                }
+            }
+
+            int code = conn.getResponseCode();
+            InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
+            if (is == null) return "";
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (sb.length() > 0) sb.append("\n");
+                    sb.append(line);
+                }
+                return sb.toString();
+            }
+        } catch (Exception e) {
+            return "{\"error\":\"" + e.getMessage() + "\"}";
+        } finally {
+            if (conn != null) {
+                try { conn.disconnect(); } catch (Exception ignored) {}
+            }
+        }
     }
 
     public static boolean unblurNsfw(String token, String proxyStr, StringBuilder proofLog) {
@@ -214,20 +445,11 @@ public class PixAiApiHelper {
             String[] values = new String[]{"adult", "show", "show"};
             for (int i = 0; i < endpoints.length; i++) {
                 try {
-                    URL u = new URL(endpoints[i]);
-                    HttpURLConnection c = openConnectionWithProxy(u, proxyStr);
-                    c.setRequestMethod("PUT");
-                    c.setRequestProperty("Authorization", "Bearer " + cleanToken);
-                    c.setRequestProperty("Content-Type", "application/json");
-                    c.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-                    c.setDoOutput(true);
-                    c.setConnectTimeout(8000);
-                    c.setReadTimeout(10000);
-                    byte[] body = ("{\"value\":\"" + values[i] + "\"}").getBytes(StandardCharsets.UTF_8);
-                    try (OutputStream os = c.getOutputStream()) {
-                        os.write(body);
-                    }
-                    c.getResponseCode();
+                    Map<String, String> h = new LinkedHashMap<>();
+                    h.put("Authorization", "Bearer " + cleanToken);
+                    h.put("Content-Type", "application/json");
+                    h.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                    httpRequestWithHeaders(endpoints[i], "PUT", h, "{\"value\":\"" + values[i] + "\"}", proxyStr, 10);
                 } catch (Exception ignored) {}
             }
 
@@ -262,20 +484,12 @@ public class PixAiApiHelper {
             // 3. Lấy bằng chứng xác nhận chính thức từ Content-Safety API
             String verifiedPrefs = "";
             try {
-                URL getPrefUrl = new URL("https://api.pixai.art/v2/me/content-safety/preferences");
-                HttpURLConnection getPrefConn = openConnectionWithProxy(getPrefUrl, proxyStr);
-                getPrefConn.setRequestMethod("GET");
-                getPrefConn.setRequestProperty("Authorization", "Bearer " + cleanToken);
-                getPrefConn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-                getPrefConn.setConnectTimeout(8000);
-                getPrefConn.setReadTimeout(10000);
-                if (getPrefConn.getResponseCode() == 200) {
-                    try (BufferedReader br = new BufferedReader(new InputStreamReader(getPrefConn.getInputStream(), StandardCharsets.UTF_8))) {
-                        StringBuilder sb = new StringBuilder();
-                        String line;
-                        while ((line = br.readLine()) != null) sb.append(line);
-                        verifiedPrefs = sb.toString();
-                    }
+                Map<String, String> getHeaders = new LinkedHashMap<>();
+                getHeaders.put("Authorization", "Bearer " + cleanToken);
+                getHeaders.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+                String resp = httpRequestWithHeaders("https://api.pixai.art/v2/me/content-safety/preferences", "GET", getHeaders, (String) null, proxyStr, 10);
+                if (resp != null && !resp.isEmpty() && !resp.startsWith("{\"error\":")) {
+                    verifiedPrefs = resp.trim();
                 }
             } catch (Exception ignored) {}
 
@@ -334,21 +548,13 @@ public class PixAiApiHelper {
     public static long getQuota(String token, String proxyStr) {
         if (token == null || token.trim().isEmpty()) return 0;
         try {
-            URL url = new URL("https://api.pixai.art/v2/user/me/quota");
-            HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Authorization", "Bearer " + token.trim());
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(10000);
-            if (conn.getResponseCode() == 200) {
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = br.readLine()) != null) sb.append(line);
-                    JSONObject json = new JSONObject(sb.toString());
-                    return json.optLong("amount", 0);
-                }
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("Authorization", "Bearer " + token.trim());
+            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            String res = httpRequestWithHeaders("https://api.pixai.art/v2/user/me/quota", "GET", headers, (String) null, proxyStr, 10);
+            if (res != null && !res.isEmpty() && !res.startsWith("{\"error\":")) {
+                JSONObject json = new JSONObject(res.trim());
+                return json.optLong("amount", 0);
             }
         } catch (Exception ignored) {}
         return 0;
@@ -357,19 +563,12 @@ public class PixAiApiHelper {
     public static boolean claimDailyCredits(String token, String proxyStr) {
         if (token == null || token.trim().isEmpty()) return false;
         try {
-            URL url = new URL("https://api.pixai.art/v2/claim/pixai-daily-credits");
-            HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + token.trim());
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(10000);
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write("{\"id\":\"pixai-daily-credits\"}".getBytes(StandardCharsets.UTF_8));
-            }
-            return conn.getResponseCode() == 200;
+            Map<String, String> headers = new LinkedHashMap<>();
+            headers.put("Content-Type", "application/json");
+            headers.put("Authorization", "Bearer " + token.trim());
+            headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            String res = httpRequestWithHeaders("https://api.pixai.art/v2/claim/pixai-daily-credits", "POST", headers, "{\"id\":\"pixai-daily-credits\"}", proxyStr, 10);
+            return res != null && !res.isEmpty() && !res.startsWith("{\"error\":");
         } catch (Exception ignored) {
             return false;
         }
@@ -379,38 +578,22 @@ public class PixAiApiHelper {
         if (token == null || token.trim().isEmpty()) return 0;
         int successCount = 0;
         String[] platforms = {"discord", "twitter", "instagram", "youtube", "tiktok"};
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Content-Type", "application/json");
+        headers.put("Authorization", "Bearer " + token.trim());
+        headers.put("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
         for (String p : platforms) {
             try {
-                URL url = new URL("https://api.pixai.art/v2/quest-v2/report-social-follow");
-                HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("Authorization", "Bearer " + token.trim());
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(6000);
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(("{\"platform\":\"" + p + "\"}").getBytes(StandardCharsets.UTF_8));
-                }
-                if (conn.getResponseCode() == 200) successCount++;
+                String res = httpRequestWithHeaders("https://api.pixai.art/v2/quest-v2/report-social-follow", "POST", headers, "{\"platform\":\"" + p + "\"}", proxyStr, 8);
+                if (res != null && !res.isEmpty() && !res.startsWith("{\"error\":")) successCount++;
             } catch (Exception ignored) {}
         }
 
         String[] visits = {"https://youtu.be/xGBoyWR4MBQ", "https://agent.pixai.art/"};
         for (String v : visits) {
             try {
-                URL url = new URL("https://api.pixai.art/v2/quest-v2/report-visit");
-                HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("Authorization", "Bearer " + token.trim());
-                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(6000);
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(("{\"url\":\"" + v + "\"}").getBytes(StandardCharsets.UTF_8));
-                }
-                if (conn.getResponseCode() == 200) successCount++;
+                String res = httpRequestWithHeaders("https://api.pixai.art/v2/quest-v2/report-visit", "POST", headers, "{\"url\":\"" + v + "\"}", proxyStr, 8);
+                if (res != null && !res.isEmpty() && !res.startsWith("{\"error\":")) successCount++;
             } catch (Exception ignored) {}
         }
         return successCount;
@@ -825,22 +1008,12 @@ public class PixAiApiHelper {
         String uploadUrl = d.getString("uploadUrl");
         String externalId = d.getString("externalId");
 
-        // Bước 2: Đẩy dữ liệu ảnh nhị phân lên AWS S3
-        URL s3Url = new URL(uploadUrl);
-        HttpURLConnection s3Conn = openConnectionWithProxy(s3Url, proxyStr);
-        s3Conn.setRequestMethod("PUT");
-        s3Conn.setRequestProperty("Content-Type", "image/jpeg");
-        s3Conn.setConnectTimeout(25000);
-        s3Conn.setReadTimeout(35000);
-        s3Conn.setDoOutput(true);
-
-        try (OutputStream os = s3Conn.getOutputStream()) {
-            os.write(imageBytes);
-        }
-
-        int s3Code = s3Conn.getResponseCode();
-        if (s3Code < 200 || s3Code >= 300) {
-            throw new Exception("Lỗi tải ảnh lên S3: HTTP " + s3Code);
+        // Bước 2: Đẩy dữ liệu ảnh nhị phân lên AWS S3 qua Socket Tunnel
+        Map<String, String> s3Headers = new LinkedHashMap<>();
+        s3Headers.put("Content-Type", "image/jpeg");
+        String s3Resp = httpRequestWithHeaders(uploadUrl, "PUT", s3Headers, imageBytes, proxyStr, 35);
+        if (s3Resp != null && s3Resp.startsWith("{\"error\":")) {
+            throw new Exception("Lỗi tải ảnh lên S3: " + s3Resp);
         }
 
         // Bước 3: Đăng ký xác nhận mediaId hoàn chỉnh với PixAI qua externalId
@@ -875,49 +1048,6 @@ public class PixAiApiHelper {
     public static void claimAllQuests(String token, String proxyStr) {
         claimDailyCredits(token, proxyStr);
         claimSocialAndVisitQuests(token, proxyStr);
-    }
-
-    public static String httpRequestWithHeaders(String urlStr, String method, Map<String, String> headers, byte[] body, String proxyStr, int timeoutSec) {
-        try {
-            URL url = new URL(urlStr);
-            HttpURLConnection conn = openConnectionWithProxy(url, proxyStr);
-            conn.setRequestMethod(method != null ? method : "GET");
-            conn.setConnectTimeout(timeoutSec > 0 ? timeoutSec * 1000 : 15000);
-            conn.setReadTimeout(timeoutSec > 0 ? timeoutSec * 1000 : 15000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-
-            if (headers != null) {
-                for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    conn.setRequestProperty(entry.getKey(), entry.getValue());
-                }
-            }
-
-            if (body != null && body.length > 0) {
-                conn.setDoOutput(true);
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(body);
-                }
-            }
-
-            int code = conn.getResponseCode();
-            InputStream is = (code >= 200 && code < 400) ? conn.getInputStream() : conn.getErrorStream();
-            if (is == null) return "";
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = br.readLine()) != null) {
-                    sb.append(line).append("\n");
-                }
-                return sb.toString().trim();
-            }
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    public static String executeSocketHttpRequest(String urlStr, String method, Map<String, String> headers, byte[] body, SecurityShieldManager.ParsedProxy proxy, int timeoutSec) {
-        String proxyStr = proxy != null ? proxy.toNormalizedUrl() : null;
-        return httpRequestWithHeaders(urlStr, method, headers, body, proxyStr, timeoutSec);
     }
 
     public static List<String> fetchShareFreeProxyPool(LogCallback log) {

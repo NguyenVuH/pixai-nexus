@@ -2095,33 +2095,19 @@ public class MainActivity extends AppCompatActivity {
             tvProxyTestResult.setTextColor(0xFFFFFFFF);
 
             executor.execute(() -> {
-                long t0 = System.currentTimeMillis();
-                try {
-                    URL url = new URL("https://ipwho.is/");
-                    HttpURLConnection conn = PixAiApiHelper.openConnectionWithProxy(url, testProxy);
-                    conn.setConnectTimeout(10000);
-                    conn.setReadTimeout(12000);
-                    InputStream is = conn.getInputStream();
-                    ByteArrayOutputStream bos = new ByteArrayOutputStream();
-                    byte[] buf = new byte[4096];
-                    int r;
-                    while ((r = is.read(buf)) != -1) bos.write(buf, 0, r);
-                    is.close();
-                    long ping = System.currentTimeMillis() - t0;
-                    JSONObject json = new JSONObject(bos.toString("UTF-8"));
-                    String ip = json.optString("ip", "Unknown");
-                    String country = json.optString("country", "Unknown");
-
+                SecurityShieldManager.ProxyNodeInfo node = SecurityShieldManager.checkSingleProxyIpAndRegion(testProxy, 12);
+                if (node.isLive && !node.exitIp.isEmpty()) {
                     mainHandler.post(() -> {
-                        tvProxyTestResult.setText("KẾT NỐI THÀNH CÔNG: IP " + ip + " | Quốc gia: " + country + " | Ping: " + ping + "ms\n(Kho: " + storage.getParsedProxyPool().size() + " proxy xoay vòng)");
+                        String msg = "KẾT NỐI THÀNH CÔNG: IP " + node.exitIp + " | " + node.getFlagEmoji() + " " + node.countryName + " | Ping: " + node.latencyMs + "ms\n(Kho: " + storage.getParsedProxyPool().size() + " proxy)";
+                        tvProxyTestResult.setText(msg);
                         tvProxyTestResult.setTextColor(0xFF81C784);
-                        logMessage("Kiểm tra Proxy thành công: IP " + ip + " (" + country + ") - Ping " + ping + "ms (Pool: " + storage.getParsedProxyPool().size() + ")");
+                        logMessage("Kiểm tra Proxy thành công: IP " + node.exitIp + " (" + node.countryName + ") - Ping " + node.latencyMs + "ms");
                     });
-                } catch (Exception e) {
+                } else {
                     mainHandler.post(() -> {
-                        tvProxyTestResult.setText("KẾT NỐI THẤT BẠI: " + e.getMessage() + "\n(Hãy kiểm tra lại thông tin User:Pass hoặc định dạng host:port)");
+                        tvProxyTestResult.setText("KẾT NỐI THẤT BẠI: Proxy không phản hồi hoặc thông tin xác thực sai.\n(Hãy kiểm tra lại user:pass hoặc định dạng host:port)");
                         tvProxyTestResult.setTextColor(0xFFE57373);
-                        logMessage("Kiểm tra Proxy thất bại (" + testProxy + "): " + e.getMessage());
+                        logMessage("Kiểm tra Proxy thất bại (" + testProxy + ")");
                     });
                 }
             });
