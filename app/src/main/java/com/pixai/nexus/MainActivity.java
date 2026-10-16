@@ -125,23 +125,8 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout layoutActiveTasksQueue;
     private LinearLayout containerActiveTasks;
 
-    // Prompt Copy & Embedded Results within Prompt Card
+    // Prompt Copy within Prompt Card
     private View btnCopyPrompt, btnCopyNegative;
-    private LinearLayout layoutPromptEmbeddedResult, layoutPromptResultToggle, containerPromptImages;
-    private TextView tvPromptResultTitle, tvPromptResultToggle;
-    private ImageView ivPromptResultToggle;
-
-    private LinearLayout layoutResultCard;
-    private LinearLayout containerResultFeed;
-    private LinearLayout layoutCarouselBar;
-    private ImageView ivResultPreview;
-    private Button btnZoomImage, btnDownloadImage;
-    private Button btnPrevImage, btnNextImage;
-    private TextView tvCarouselIndicator;
-    private TextView tvResOriginalPrompt, tvResServerPrompt;
-    private Button btnCopyOriginalPrompt, btnCopyServerPrompt;
-    private TextView tvEmbeddedOriginalPrompt, tvEmbeddedServerPrompt;
-    private View btnEmbeddedCopyOriginal, btnEmbeddedCopyServer;
 
     // Tab 2: Accounts Views
     private EditText etNewAccountToken;
@@ -187,10 +172,6 @@ public class MainActivity extends AppCompatActivity {
     private final List<String> attachedMediaIds = new ArrayList<>();
     private Bitmap firstAttachedBitmap = null;
 
-    private final List<String> currentResultImages = new ArrayList<>();
-    private int currentCarouselIdx = 0;
-    private String lastOriginalPrompt = "";
-    private String lastServerPrompt = "";
     private boolean isGenerating = false;
 
     private ActivityResultLauncher<String> imagePickerLauncher;
@@ -212,7 +193,6 @@ public class MainActivity extends AppCompatActivity {
         setupBatchButtons();
         setupImagePicker();
         setupGenerateAction();
-        setupCarouselActions();
         setupAccountManagementActions();
         setupHistoryActions();
         setupSecurityTabActions();
@@ -300,32 +280,6 @@ public class MainActivity extends AppCompatActivity {
         btnGenerate = findViewById(R.id.btnGenerate);
         layoutActiveTasksQueue = findViewById(R.id.layoutActiveTasksQueue);
         containerActiveTasks = findViewById(R.id.containerActiveTasks);
-
-        layoutPromptEmbeddedResult = findViewById(R.id.layoutPromptEmbeddedResult);
-        layoutPromptResultToggle = findViewById(R.id.layoutPromptResultToggle);
-        containerPromptImages = findViewById(R.id.containerPromptImages);
-        tvPromptResultTitle = findViewById(R.id.tvPromptResultTitle);
-        tvPromptResultToggle = findViewById(R.id.tvPromptResultToggle);
-        ivPromptResultToggle = findViewById(R.id.ivPromptResultToggle);
-
-        layoutResultCard = findViewById(R.id.layoutResultCard);
-        containerResultFeed = findViewById(R.id.containerResultFeed);
-        layoutCarouselBar = findViewById(R.id.layoutCarouselBar);
-        ivResultPreview = findViewById(R.id.ivResultPreview);
-        btnZoomImage = findViewById(R.id.btnZoomImage);
-        btnDownloadImage = findViewById(R.id.btnDownloadImage);
-        btnPrevImage = findViewById(R.id.btnPrevImage);
-        btnNextImage = findViewById(R.id.btnNextImage);
-        tvCarouselIndicator = findViewById(R.id.tvCarouselIndicator);
-
-        tvResOriginalPrompt = findViewById(R.id.tvResOriginalPrompt);
-        tvResServerPrompt = findViewById(R.id.tvResServerPrompt);
-        btnCopyOriginalPrompt = findViewById(R.id.btnCopyOriginalPrompt);
-        btnCopyServerPrompt = findViewById(R.id.btnCopyServerPrompt);
-        tvEmbeddedOriginalPrompt = findViewById(R.id.tvEmbeddedOriginalPrompt);
-        tvEmbeddedServerPrompt = findViewById(R.id.tvEmbeddedServerPrompt);
-        btnEmbeddedCopyOriginal = findViewById(R.id.btnEmbeddedCopyOriginal);
-        btnEmbeddedCopyServer = findViewById(R.id.btnEmbeddedCopyServer);
 
         etNewAccountToken = findViewById(R.id.etNewAccountToken);
         btnAddAccountDirect = findViewById(R.id.btnAddAccountDirect);
@@ -948,101 +902,6 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Đã sao chép Negative Prompt!", Toast.LENGTH_SHORT).show();
             });
         }
-
-        if (layoutPromptResultToggle != null) {
-            layoutPromptResultToggle.setOnClickListener(v -> {
-                boolean isExpanded = containerPromptImages.getVisibility() == View.VISIBLE;
-                containerPromptImages.setVisibility(isExpanded ? View.GONE : View.VISIBLE);
-                View pInfo = findViewById(R.id.layoutPromptEmbeddedInfo);
-                if (pInfo != null) pInfo.setVisibility(isExpanded ? View.GONE : View.VISIBLE);
-                tvPromptResultToggle.setText(isExpanded ? "Mở Rộng" : "Thu Gọn");
-                ivPromptResultToggle.setImageResource(isExpanded ? R.drawable.ic_expand : R.drawable.ic_collapse);
-            });
-        }
-
-        if (btnEmbeddedCopyOriginal != null) {
-            btnEmbeddedCopyOriginal.setOnClickListener(v -> {
-                if (lastOriginalPrompt != null && !lastOriginalPrompt.isEmpty()) {
-                    ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData cd = ClipData.newPlainText("Original Prompt", lastOriginalPrompt);
-                    cm.setPrimaryClip(cd);
-                    Toast.makeText(this, "Đã sao chép Prompt Gốc!", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        if (btnEmbeddedCopyServer != null) {
-            btnEmbeddedCopyServer.setOnClickListener(v -> {
-                String sp = (lastServerPrompt != null && !lastServerPrompt.isEmpty()) ? lastServerPrompt : lastOriginalPrompt;
-                if (sp != null && !sp.isEmpty()) {
-                    ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    ClipData cd = ClipData.newPlainText("Server Prompt", sp);
-                    cm.setPrimaryClip(cd);
-                    Toast.makeText(this, "Đã sao chép Prompt Máy Chủ Tối Ưu!", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }
-
-        btnCopyOriginalPrompt.setOnClickListener(v -> {
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData cd = ClipData.newPlainText("Original Prompt", lastOriginalPrompt);
-            cm.setPrimaryClip(cd);
-            Toast.makeText(this, "Đã sao chép Prompt Gốc!", Toast.LENGTH_SHORT).show();
-        });
-
-        btnCopyServerPrompt.setOnClickListener(v -> {
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            ClipData cd = ClipData.newPlainText("Server Prompt", lastServerPrompt);
-            cm.setPrimaryClip(cd);
-            Toast.makeText(this, "Đã sao chép Prompt Server Sửa!", Toast.LENGTH_SHORT).show();
-        });
-
-        btnZoomImage.setOnClickListener(v -> {
-            if (!currentResultImages.isEmpty()) {
-                openFullscreenZoom(currentResultImages.get(currentCarouselIdx));
-            }
-        });
-
-        btnDownloadImage.setOnClickListener(v -> {
-            if (!currentResultImages.isEmpty()) {
-                downloadImageToGallery(currentResultImages.get(currentCarouselIdx));
-            }
-        });
-    }
-
-    private void setupCarouselActions() {
-        btnPrevImage.setOnClickListener(v -> {
-            if (currentCarouselIdx > 0) {
-                currentCarouselIdx--;
-                updateCarouselDisplay();
-            }
-        });
-
-        btnNextImage.setOnClickListener(v -> {
-            if (currentCarouselIdx < currentResultImages.size() - 1) {
-                currentCarouselIdx++;
-                updateCarouselDisplay();
-            }
-        });
-    }
-
-    private void updateCarouselDisplay() {
-        if (currentResultImages.isEmpty()) {
-            layoutCarouselBar.setVisibility(View.GONE);
-            return;
-        }
-
-        int total = currentResultImages.size();
-        if (total > 1) {
-            layoutCarouselBar.setVisibility(View.VISIBLE);
-            tvCarouselIndicator.setText("Ảnh " + (currentCarouselIdx + 1) + " / " + total);
-            btnPrevImage.setEnabled(currentCarouselIdx > 0);
-            btnNextImage.setEnabled(currentCarouselIdx < total - 1);
-        } else {
-            layoutCarouselBar.setVisibility(View.GONE);
-        }
-
-        loadImagePreview(currentResultImages.get(currentCarouselIdx));
     }
 
     private void startGenerationTask() {
@@ -1183,10 +1042,7 @@ public class MainActivity extends AppCompatActivity {
         View btnCopyOrig = card.findViewById(R.id.btnTaskCopyOriginal);
         View btnCopyServ = card.findViewById(R.id.btnTaskCopyServer);
         ProgressBar pb = card.findViewById(R.id.pbTaskProgress);
-        LinearLayout layoutResult = card.findViewById(R.id.layoutTaskResult);
-        ImageView ivThumb = card.findViewById(R.id.ivTaskThumbnail);
-        View btnZoom = card.findViewById(R.id.btnTaskZoom);
-        View btnApply = card.findViewById(R.id.btnTaskApply);
+        LinearLayout layoutTaskImagesFeed = card.findViewById(R.id.layoutTaskImagesFeed);
 
         String tidShort = item.getTaskId();
         if (tidShort.length() > 8) tidShort = tidShort.substring(tidShort.length() - 8);
@@ -1268,21 +1124,121 @@ public class MainActivity extends AppCompatActivity {
                             tvFullServer.setText(item.getServerPrompt());
                             tvFullServer.setTextColor(0xFF81C784);
                         }
-                        layoutResult.setVisibility(View.VISIBLE);
 
-                        // Tải ảnh thumbnail vào thẻ
-                        String firstUrl = pr.imageUrls.get(0);
-                        loadImageIntoView(firstUrl, ivThumb, item.getId());
+                        // Tự động mở rộng phiên để hiển thị đầy đủ hình ảnh kết quả ngay tại phiên
+                        isExp[0] = true;
+                        if (layoutExpanded != null) layoutExpanded.setVisibility(View.VISIBLE);
+                        if (tvExpandText != null) tvExpandText.setText("Thu Gọn");
+                        if (ivExpandToggle != null) ivExpandToggle.setImageResource(R.drawable.ic_collapse);
 
-                        btnZoom.setOnClickListener(v -> openFullscreenZoom(firstUrl));
-                        btnApply.setOnClickListener(v -> applyTaskResultToMainStudio(item));
+                        // Hiển thị danh sách ảnh đầy đủ ngay trong thẻ phiên (layoutTaskImagesFeed)
+                        if (layoutTaskImagesFeed != null) {
+                            layoutTaskImagesFeed.removeAllViews();
+                            layoutTaskImagesFeed.setVisibility(View.VISIBLE);
+                            List<String> urls = pr.imageUrls;
+                            int total = urls.size();
+                            for (int i = 0; i < total; i++) {
+                                final int idx = i;
+                                final String u = urls.get(i);
 
-                        // Tự động nạp vào màn hình kết quả chính
-                        applyTaskResultToMainStudio(item);
+                                LinearLayout imgCard = new LinearLayout(MainActivity.this);
+                                imgCard.setOrientation(LinearLayout.VERTICAL);
+                                imgCard.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
+                                int p = (int) (8 * getResources().getDisplayMetrics().density);
+                                imgCard.setPadding(p, p, p, p);
+                                imgCard.setClipChildren(true);
+                                imgCard.setClipToPadding(true);
+                                LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                                cardLp.setMargins(0, 0, 0, (int) (10 * getResources().getDisplayMetrics().density));
+                                imgCard.setLayoutParams(cardLp);
+
+                                TextView tvNum = new TextView(MainActivity.this);
+                                tvNum.setText("Ảnh " + (idx + 1) + " / " + total + " • " + item.getWidth() + "x" + item.getHeight());
+                                tvNum.setTextColor(0xFFCCCCCC);
+                                tvNum.setTextSize(11);
+                                tvNum.setTypeface(null, android.graphics.Typeface.BOLD);
+                                imgCard.addView(tvNum);
+
+                                PinchZoomImageView iv = new PinchZoomImageView(MainActivity.this);
+                                int hPx = (int) (280 * getResources().getDisplayMetrics().density);
+                                LinearLayout.LayoutParams ivLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, hPx);
+                                ivLp.setMargins(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
+                                iv.setLayoutParams(ivLp);
+                                iv.setBackgroundColor(0xFF141414);
+                                loadImageIntoView(u, iv, item.getId() + "_task_" + idx);
+                                imgCard.addView(iv);
+
+                                // Thanh tác vụ tối giản (Hạn chế button, dùng chip tối giản)
+                                LinearLayout actRow = new LinearLayout(MainActivity.this);
+                                actRow.setOrientation(LinearLayout.HORIZONTAL);
+                                actRow.setGravity(Gravity.CENTER_VERTICAL);
+                                actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                                TextView tvHint = new TextView(MainActivity.this);
+                                tvHint.setText("Kéo 2 ngón tay để zoom • Chạm 2 lần");
+                                tvHint.setTextColor(0xFF757575);
+                                tvHint.setTextSize(10);
+                                LinearLayout.LayoutParams thLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
+                                tvHint.setLayoutParams(thLp);
+                                actRow.addView(tvHint);
+
+                                // Chip Phóng To Toàn Màn
+                                LinearLayout chipZ = new LinearLayout(MainActivity.this);
+                                chipZ.setOrientation(LinearLayout.HORIZONTAL);
+                                chipZ.setGravity(Gravity.CENTER);
+                                chipZ.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
+                                chipZ.setClickable(true);
+                                chipZ.setFocusable(true);
+                                int pPadH = (int) (10 * getResources().getDisplayMetrics().density);
+                                int pPadV = (int) (6 * getResources().getDisplayMetrics().density);
+                                chipZ.setPadding(pPadH, pPadV, pPadH, pPadV);
+                                LinearLayout.LayoutParams czLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                                czLp.setMarginEnd((int) (6 * getResources().getDisplayMetrics().density));
+                                chipZ.setLayoutParams(czLp);
+
+                                ImageView ivZ = new ImageView(MainActivity.this);
+                                ivZ.setLayoutParams(new LinearLayout.LayoutParams((int) (14 * getResources().getDisplayMetrics().density), (int) (14 * getResources().getDisplayMetrics().density)));
+                                ivZ.setImageResource(R.drawable.ic_zoom_in);
+                                chipZ.addView(ivZ);
+
+                                TextView tvZ = new TextView(MainActivity.this);
+                                tvZ.setText(" Toàn Màn");
+                                tvZ.setTextColor(0xFFFFFFFF);
+                                tvZ.setTextSize(11);
+                                chipZ.addView(tvZ);
+                                chipZ.setOnClickListener(v -> openFullscreenZoom(u));
+                                actRow.addView(chipZ);
+
+                                // Chip Tải Về Máy
+                                LinearLayout chipD = new LinearLayout(MainActivity.this);
+                                chipD.setOrientation(LinearLayout.HORIZONTAL);
+                                chipD.setGravity(Gravity.CENTER);
+                                chipD.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
+                                chipD.setClickable(true);
+                                chipD.setFocusable(true);
+                                chipD.setPadding(pPadH, pPadV, pPadH, pPadV);
+
+                                ImageView ivD = new ImageView(MainActivity.this);
+                                ivD.setLayoutParams(new LinearLayout.LayoutParams((int) (14 * getResources().getDisplayMetrics().density), (int) (14 * getResources().getDisplayMetrics().density)));
+                                ivD.setImageResource(R.drawable.ic_download);
+                                chipD.addView(ivD);
+
+                                TextView tvD = new TextView(MainActivity.this);
+                                tvD.setText(" Tải Về");
+                                tvD.setTextColor(0xFF81C784);
+                                tvD.setTextSize(11);
+                                chipD.addView(tvD);
+                                chipD.setOnClickListener(v -> downloadImageToGallery(u));
+                                actRow.addView(chipD);
+
+                                imgCard.addView(actRow);
+                                layoutTaskImagesFeed.addView(imgCard);
+                            }
+                        }
 
                         refreshHistoryList();
                         logMessage("Task #" + item.getTaskId() + " hoàn thành 100%! Đã nhận " + pr.imageUrls.size() + " ảnh.");
-                        Toast.makeText(this, "Tạo ảnh hoàn tất (" + elapsed + "s)!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Tạo ảnh hoàn tất (" + elapsed + "s)!", Toast.LENGTH_SHORT).show();
                     });
                 } else if (pr.failed) {
                     finished = true;
@@ -1301,152 +1257,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-    }
-
-    private void applyTaskResultToMainStudio(HistoryItem item) {
-        lastOriginalPrompt = item.getOriginalPrompt();
-        lastServerPrompt = item.getServerPrompt();
-        currentResultImages.clear();
-        currentResultImages.addAll(item.getImageUrls());
-        currentCarouselIdx = 0;
-
-        // Ẩn hoàn toàn Result Card riêng biệt ở dưới theo yêu cầu
-        if (layoutResultCard != null) {
-            layoutResultCard.setVisibility(View.GONE);
-        }
-        if (tvResOriginalPrompt != null) tvResOriginalPrompt.setText(lastOriginalPrompt);
-        if (tvResServerPrompt != null) tvResServerPrompt.setText(lastServerPrompt);
-
-        // Cập nhật Prompt hiển thị trực tiếp tại Prompt Card
-        if (tvEmbeddedOriginalPrompt != null) {
-            tvEmbeddedOriginalPrompt.setText(lastOriginalPrompt);
-        }
-        if (tvEmbeddedServerPrompt != null) {
-            if (lastServerPrompt == null || lastServerPrompt.trim().isEmpty() || lastServerPrompt.equals(lastOriginalPrompt)) {
-                tvEmbeddedServerPrompt.setText("Trùng khớp với Prompt gốc, máy chủ không sửa đổi.");
-                tvEmbeddedServerPrompt.setTextColor(0xFF9E9E9E);
-            } else {
-                tvEmbeddedServerPrompt.setText(lastServerPrompt);
-                tvEmbeddedServerPrompt.setTextColor(0xFF81C784);
-            }
-        }
-
-        View pInfo = findViewById(R.id.layoutPromptEmbeddedInfo);
-        if (pInfo != null) pInfo.setVisibility(View.VISIBLE);
-
-        // Hiển thị trực tiếp tại Prompt Card kèm tùy chọn Mở Rộng / Thu Gọn
-        if (layoutPromptEmbeddedResult != null && containerPromptImages != null) {
-            layoutPromptEmbeddedResult.setVisibility(View.VISIBLE);
-            containerPromptImages.setVisibility(View.VISIBLE);
-            if (tvPromptResultToggle != null) tvPromptResultToggle.setText("Thu Gọn");
-            if (ivPromptResultToggle != null) ivPromptResultToggle.setImageResource(R.drawable.ic_collapse);
-            if (tvPromptResultTitle != null) {
-                tvPromptResultTitle.setText("Ảnh Vừa Tạo (" + currentResultImages.size() + " ảnh)");
-            }
-
-            containerPromptImages.removeAllViews();
-            int total = currentResultImages.size();
-            for (int i = 0; i < total; i++) {
-                final int idx = i;
-                final String imgUrl = currentResultImages.get(i);
-
-                LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setBackgroundResource(R.drawable.bg_cyber_card);
-                int pad = (int) (12 * getResources().getDisplayMetrics().density);
-                card.setPadding(pad, pad, pad, pad);
-                LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                cardLp.setMargins(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
-                card.setLayoutParams(cardLp);
-
-                TextView tvHeader = new TextView(this);
-                tvHeader.setText("Ảnh " + (idx + 1) + " / " + total + " • " + item.getWidth() + "x" + item.getHeight() + " px");
-                tvHeader.setTextColor(0xFFFFFFFF);
-                tvHeader.setTextSize(12);
-                tvHeader.setTypeface(null, android.graphics.Typeface.BOLD);
-                card.addView(tvHeader);
-
-                // Khung ảnh chạm trực tiếp để phóng to
-                ImageView iv = new ImageView(this);
-                int hPx = (int) (320 * getResources().getDisplayMetrics().density);
-                LinearLayout.LayoutParams ivLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, hPx);
-                ivLp.setMargins(0, (int) (8 * getResources().getDisplayMetrics().density), 0, (int) (8 * getResources().getDisplayMetrics().density));
-                iv.setLayoutParams(ivLp);
-                iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                iv.setBackgroundColor(0xFF141414);
-                iv.setClickable(true);
-                iv.setFocusable(true);
-                iv.setOnClickListener(v -> openFullscreenZoom(imgUrl));
-                loadImageIntoView(imgUrl, iv, item.getId() + "_" + idx);
-                card.addView(iv);
-
-                // Thanh tác vụ tinh gọn (Hạn chế button, dùng chip tối giản cân đối)
-                LinearLayout actRow = new LinearLayout(this);
-                actRow.setOrientation(LinearLayout.HORIZONTAL);
-                actRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-                TextView tvHint = new TextView(this);
-                tvHint.setText("Chạm ảnh để phóng to 2 ngón tay");
-                tvHint.setTextColor(0xFF757575);
-                tvHint.setTextSize(10);
-                LinearLayout.LayoutParams thLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
-                tvHint.setLayoutParams(thLp);
-                actRow.addView(tvHint);
-
-                // Chip Phóng To
-                LinearLayout chipZ = new LinearLayout(this);
-                chipZ.setOrientation(LinearLayout.HORIZONTAL);
-                chipZ.setGravity(android.view.Gravity.CENTER);
-                chipZ.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-                chipZ.setClickable(true);
-                chipZ.setFocusable(true);
-                int pPadH = (int) (10 * getResources().getDisplayMetrics().density);
-                int pPadV = (int) (6 * getResources().getDisplayMetrics().density);
-                chipZ.setPadding(pPadH, pPadV, pPadH, pPadV);
-                LinearLayout.LayoutParams czLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                czLp.setMarginEnd((int) (6 * getResources().getDisplayMetrics().density));
-                chipZ.setLayoutParams(czLp);
-
-                ImageView ivZ = new ImageView(this);
-                ivZ.setLayoutParams(new LinearLayout.LayoutParams((int) (14 * getResources().getDisplayMetrics().density), (int) (14 * getResources().getDisplayMetrics().density)));
-                ivZ.setImageResource(R.drawable.ic_zoom_in);
-                chipZ.addView(ivZ);
-
-                TextView tvZ = new TextView(this);
-                tvZ.setText(" Phóng To");
-                tvZ.setTextColor(0xFFFFFFFF);
-                tvZ.setTextSize(11);
-                chipZ.addView(tvZ);
-                chipZ.setOnClickListener(v -> openFullscreenZoom(imgUrl));
-                actRow.addView(chipZ);
-
-                // Chip Tải Về Máy
-                LinearLayout chipD = new LinearLayout(this);
-                chipD.setOrientation(LinearLayout.HORIZONTAL);
-                chipD.setGravity(android.view.Gravity.CENTER);
-                chipD.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
-                chipD.setClickable(true);
-                chipD.setFocusable(true);
-                chipD.setPadding(pPadH, pPadV, pPadH, pPadV);
-
-                ImageView ivD = new ImageView(this);
-                ivD.setLayoutParams(new LinearLayout.LayoutParams((int) (14 * getResources().getDisplayMetrics().density), (int) (14 * getResources().getDisplayMetrics().density)));
-                ivD.setImageResource(R.drawable.ic_download);
-                chipD.addView(ivD);
-
-                TextView tvD = new TextView(this);
-                tvD.setText(" Tải Về");
-                tvD.setTextColor(0xFF81C784);
-                tvD.setTextSize(11);
-                chipD.addView(tvD);
-                chipD.setOnClickListener(v -> downloadImageToGallery(imgUrl));
-                actRow.addView(chipD);
-
-                card.addView(actRow);
-                containerPromptImages.addView(card);
-            }
-        }
     }
 
     private HttpURLConnection openConnectionWithAppProxy(URL url) throws Exception {
@@ -1486,22 +1296,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void loadImagePreview(String urlString) {
-        executor.execute(() -> {
-            try {
-                URL url = new URL(urlString);
-                HttpURLConnection conn = openConnectionWithAppProxy(url);
-                conn.setConnectTimeout(15000);
-                conn.setReadTimeout(20000);
-                InputStream is = conn.getInputStream();
-                Bitmap bitmap = BitmapFactory.decodeStream(is);
-                mainHandler.post(() -> {
-                    if (bitmap != null) ivResultPreview.setImageBitmap(bitmap);
-                });
-            } catch (Exception ignored) {}
-        });
-    }
-
     private void openFullscreenZoom(String imageUrl) {
         if (imageUrl == null || imageUrl.trim().isEmpty()) {
             Toast.makeText(this, "Không có đường dẫn ảnh hợp lệ!", Toast.LENGTH_SHORT).show();
@@ -1523,41 +1317,55 @@ public class MainActivity extends AppCompatActivity {
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         topBar.setPadding(0, 0, 0, (int) (12 * getResources().getDisplayMetrics().density));
 
-        Button btnClose = new Button(this);
-        btnClose.setText("Đóng");
-        btnClose.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-        btnClose.setTextColor(0xFFFFFFFF);
-        btnClose.setTextSize(11);
-        btnClose.setAllCaps(false);
-        LinearLayout.LayoutParams btnCloseLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
-        btnClose.setLayoutParams(btnCloseLp);
-        btnClose.setMinHeight((int) (38 * getResources().getDisplayMetrics().density));
-        btnClose.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
-        btnClose.setOnClickListener(v -> dialog.dismiss());
-        topBar.addView(btnClose);
+        LinearLayout chipClose = new LinearLayout(this);
+        chipClose.setOrientation(LinearLayout.HORIZONTAL);
+        chipClose.setGravity(Gravity.CENTER);
+        chipClose.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
+        chipClose.setClickable(true);
+        chipClose.setFocusable(true);
+        int chipPadH = (int) (12 * getResources().getDisplayMetrics().density);
+        int chipPadV = (int) (8 * getResources().getDisplayMetrics().density);
+        chipClose.setPadding(chipPadH, chipPadV, chipPadH, chipPadV);
+        ImageView ivClose = new ImageView(this);
+        ivClose.setLayoutParams(new LinearLayout.LayoutParams((int) (16 * getResources().getDisplayMetrics().density), (int) (16 * getResources().getDisplayMetrics().density)));
+        ivClose.setImageResource(R.drawable.ic_close);
+        chipClose.addView(ivClose);
+        TextView tvClose = new TextView(this);
+        tvClose.setText(" Đóng");
+        tvClose.setTextColor(0xFFE0E0E0);
+        tvClose.setTextSize(11);
+        chipClose.addView(tvClose);
+        chipClose.setOnClickListener(v -> dialog.dismiss());
+        topBar.addView(chipClose);
 
         TextView tvTitle = new TextView(this);
-        tvTitle.setText("PHÓNG TO (PINCH ZOOM)");
+        tvTitle.setText("PHÓNG TO ẢNH");
         tvTitle.setTextColor(0xFFCCCCCC);
         tvTitle.setTextSize(12);
         tvTitle.setTypeface(null, android.graphics.Typeface.BOLD);
         tvTitle.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams tvTitleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 2.0f);
+        LinearLayout.LayoutParams tvTitleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
         tvTitle.setLayoutParams(tvTitleLp);
         topBar.addView(tvTitle);
 
-        Button btnSave = new Button(this);
-        btnSave.setText("Lưu Máy");
-        btnSave.setBackgroundResource(R.drawable.bg_cyber_btn_secondary);
-        btnSave.setTextColor(0xFF81C784);
-        btnSave.setTextSize(11);
-        btnSave.setAllCaps(false);
-        LinearLayout.LayoutParams btnSaveLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
-        btnSave.setLayoutParams(btnSaveLp);
-        btnSave.setMinHeight((int) (38 * getResources().getDisplayMetrics().density));
-        btnSave.setPadding(0, (int) (6 * getResources().getDisplayMetrics().density), 0, (int) (6 * getResources().getDisplayMetrics().density));
-        btnSave.setOnClickListener(v -> downloadImageToGallery(imageUrl));
-        topBar.addView(btnSave);
+        LinearLayout chipSave = new LinearLayout(this);
+        chipSave.setOrientation(LinearLayout.HORIZONTAL);
+        chipSave.setGravity(Gravity.CENTER);
+        chipSave.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
+        chipSave.setClickable(true);
+        chipSave.setFocusable(true);
+        chipSave.setPadding(chipPadH, chipPadV, chipPadH, chipPadV);
+        ImageView ivSave = new ImageView(this);
+        ivSave.setLayoutParams(new LinearLayout.LayoutParams((int) (16 * getResources().getDisplayMetrics().density), (int) (16 * getResources().getDisplayMetrics().density)));
+        ivSave.setImageResource(R.drawable.ic_download);
+        chipSave.addView(ivSave);
+        TextView tvSave = new TextView(this);
+        tvSave.setText(" Tải Về");
+        tvSave.setTextColor(0xFF81C784);
+        tvSave.setTextSize(11);
+        chipSave.addView(tvSave);
+        chipSave.setOnClickListener(v -> downloadImageToGallery(imageUrl));
+        topBar.addView(chipSave);
 
         container.addView(topBar);
 
@@ -2344,6 +2152,8 @@ public class MainActivity extends AppCompatActivity {
                             imgCard.setBackgroundResource(R.drawable.bg_cyber_chip_normal);
                             int p = (int) (8 * getContext().getResources().getDisplayMetrics().density);
                             imgCard.setPadding(p, p, p, p);
+                            imgCard.setClipChildren(true);
+                            imgCard.setClipToPadding(true);
                             LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
                             cardLp.setMargins(0, 0, 0, (int) (10 * getContext().getResources().getDisplayMetrics().density));
                             imgCard.setLayoutParams(cardLp);
@@ -2355,16 +2165,12 @@ public class MainActivity extends AppCompatActivity {
                             tvNum.setTypeface(null, android.graphics.Typeface.BOLD);
                             imgCard.addView(tvNum);
 
-                            ImageView iv = new ImageView(getContext());
-                            int hPx = (int) (260 * getContext().getResources().getDisplayMetrics().density);
+                            PinchZoomImageView iv = new PinchZoomImageView(getContext());
+                            int hPx = (int) (280 * getContext().getResources().getDisplayMetrics().density);
                             LinearLayout.LayoutParams ivLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, hPx);
-                            ivLp.setMargins(0, (int) (4 * getContext().getResources().getDisplayMetrics().density), 0, (int) (6 * getContext().getResources().getDisplayMetrics().density));
+                            ivLp.setMargins(0, (int) (6 * getContext().getResources().getDisplayMetrics().density), 0, (int) (6 * getContext().getResources().getDisplayMetrics().density));
                             iv.setLayoutParams(ivLp);
-                            iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
                             iv.setBackgroundColor(0xFF141414);
-                            iv.setClickable(true);
-                            iv.setFocusable(true);
-                            iv.setOnClickListener(v -> openFullscreenZoom(u));
                             loadImageIntoView(u, iv, item.getId() + "_" + idx);
                             imgCard.addView(iv);
 
@@ -2375,7 +2181,7 @@ public class MainActivity extends AppCompatActivity {
                             actRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                             TextView tvHint = new TextView(getContext());
-                            tvHint.setText("Chạm ảnh để phóng to 2 ngón tay");
+                            tvHint.setText("Kéo 2 ngón tay để zoom • Chạm 2 lần");
                             tvHint.setTextColor(0xFF757575);
                             tvHint.setTextSize(10);
                             LinearLayout.LayoutParams thLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1.0f);
@@ -2402,7 +2208,7 @@ public class MainActivity extends AppCompatActivity {
                             chipZ.addView(ivZ);
 
                             TextView tvZ = new TextView(getContext());
-                            tvZ.setText(" Phóng To");
+                            tvZ.setText(" Toàn Màn");
                             tvZ.setTextColor(0xFFFFFFFF);
                             tvZ.setTextSize(11);
                             chipZ.addView(tvZ);

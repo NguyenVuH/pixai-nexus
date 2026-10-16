@@ -1,6 +1,7 @@
 package com.pixai.nexus;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.PointF;
 import android.graphics.drawable.Drawable;
@@ -62,6 +63,13 @@ public class PinchZoomImageView extends AppCompatImageView {
             scaleDetector.onTouchEvent(event);
             gestureDetector.onTouchEvent(event);
 
+            int pointerCount = event.getPointerCount();
+            if (pointerCount > 1 || saveScale > 1.05f || scaleDetector.isInProgress()) {
+                if (v.getParent() != null) {
+                    v.getParent().requestDisallowInterceptTouchEvent(true);
+                }
+            }
+
             PointF curr = new PointF(event.getX(), event.getY());
 
             switch (event.getAction() & MotionEvent.ACTION_MASK) {
@@ -69,23 +77,35 @@ public class PinchZoomImageView extends AppCompatImageView {
                     prevMatrix.set(matrix);
                     start.set(event.getX(), event.getY());
                     mode = DRAG;
+                    if (saveScale > 1.05f && v.getParent() != null) {
+                        v.getParent().requestDisallowInterceptTouchEvent(true);
+                    }
                     break;
 
                 case MotionEvent.ACTION_MOVE:
-                    if (mode == DRAG) {
+                    if (mode == DRAG && saveScale > 1.05f) {
                         float deltaX = curr.x - start.x;
                         float deltaY = curr.y - start.y;
-                        if (saveScale > 1.0f) {
-                            matrix.set(prevMatrix);
-                            matrix.postTranslate(deltaX, deltaY);
-                            fixTranslation();
+                        matrix.set(prevMatrix);
+                        matrix.postTranslate(deltaX, deltaY);
+                        fixTranslation();
+                        setImageMatrix(matrix);
+                        invalidate();
+                    } else if (saveScale <= 1.05f && pointerCount == 1) {
+                        // Cho phép ScrollView cha cuộn tự nhiên khi ảnh ở tỷ lệ mặc định
+                        if (v.getParent() != null) {
+                            v.getParent().requestDisallowInterceptTouchEvent(false);
                         }
+                        return false;
                     }
                     break;
 
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_POINTER_UP:
                     mode = NONE;
+                    if (saveScale <= 1.05f && v.getParent() != null) {
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
+                    }
                     break;
 
                 case MotionEvent.ACTION_POINTER_DOWN:
@@ -94,6 +114,16 @@ public class PinchZoomImageView extends AppCompatImageView {
                         prevMatrix.set(matrix);
                         midPoint(mid, event);
                         mode = ZOOM;
+                        if (v.getParent() != null) {
+                            v.getParent().requestDisallowInterceptTouchEvent(true);
+                        }
+                    }
+                    break;
+
+                case MotionEvent.ACTION_CANCEL:
+                    mode = NONE;
+                    if (v.getParent() != null) {
+                        v.getParent().requestDisallowInterceptTouchEvent(false);
                     }
                     break;
             }
@@ -118,6 +148,15 @@ public class PinchZoomImageView extends AppCompatImageView {
 
     private class ScaleListener extends ScaleGestureDetector.SimpleOnScaleGestureListener {
         @Override
+        public boolean onScaleBegin(ScaleGestureDetector detector) {
+            mode = ZOOM;
+            if (getParent() != null) {
+                getParent().requestDisallowInterceptTouchEvent(true);
+            }
+            return true;
+        }
+
+        @Override
         public boolean onScale(ScaleGestureDetector detector) {
             float scaleFactor = detector.getScaleFactor();
             float origScale = saveScale;
@@ -130,28 +169,43 @@ public class PinchZoomImageView extends AppCompatImageView {
                 scaleFactor = minScale / origScale;
             }
 
-            if (origWidth * saveScale <= viewWidth || origHeight * saveScale <= viewHeight) {
-                matrix.postScale(scaleFactor, scaleFactor, viewWidth / 2f, viewHeight / 2f);
+            if (saveScale <= 1.02f) {
+                fitCenterImage();
             } else {
                 matrix.postScale(scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
+                fixTranslation();
             }
 
-            fixTranslation();
+            setImageMatrix(matrix);
+            invalidate();
             return true;
+        }
+
+        @Override
+        public void onScaleEnd(ScaleGestureDetector detector) {
+            if (saveScale <= 1.05f) {
+                resetZoom();
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(false);
+                }
+            }
         }
     }
 
     private class GestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
         public boolean onDoubleTap(MotionEvent e) {
-            if (saveScale > 1.0f) {
-                // Zoom out to normal
+            if (saveScale > 1.05f) {
+                // Thu về mặc định
                 resetZoom();
             } else {
-                // Zoom in 2.5x at tap point
+                // Phóng to 2.5x tại điểm chạm
                 saveScale = 2.5f;
                 matrix.postScale(2.5f, 2.5f, e.getX(), e.getY());
                 fixTranslation();
+                if (getParent() != null) {
+                    getParent().requestDisallowInterceptTouchEvent(true);
+                }
             }
             setImageMatrix(matrix);
             invalidate();
@@ -161,9 +215,13 @@ public class PinchZoomImageView extends AppCompatImageView {
 
     public void resetZoom() {
         saveScale = 1.0f;
+        mode = NONE;
         fitCenterImage();
         setImageMatrix(matrix);
         invalidate();
+        if (getParent() != null) {
+            getParent().requestDisallowInterceptTouchEvent(false);
+        }
     }
 
     private void fixTranslation() {
@@ -183,8 +241,8 @@ public class PinchZoomImageView extends AppCompatImageView {
         float minTrans, maxTrans;
 
         if (contentSize <= viewSize) {
-            minTrans = 0;
-            maxTrans = viewSize - contentSize;
+            minTrans = (viewSize - contentSize) / 2f;
+            maxTrans = (viewSize - contentSize) / 2f;
         } else {
             minTrans = viewSize - contentSize;
             maxTrans = 0;
@@ -216,8 +274,8 @@ public class PinchZoomImageView extends AppCompatImageView {
 
         matrix.postTranslate(redundantXSpace, redundantYSpace);
 
-        origWidth = viewWidth - 2 * redundantXSpace;
-        origHeight = viewHeight - 2 * redundantYSpace;
+        origWidth = scale * bmWidth;
+        origHeight = scale * bmHeight;
     }
 
     @Override
@@ -235,6 +293,14 @@ public class PinchZoomImageView extends AppCompatImageView {
     @Override
     public void setImageDrawable(Drawable drawable) {
         super.setImageDrawable(drawable);
+        saveScale = 1.0f;
+        fitCenterImage();
+        setImageMatrix(matrix);
+    }
+
+    @Override
+    public void setImageBitmap(Bitmap bm) {
+        super.setImageBitmap(bm);
         saveScale = 1.0f;
         fitCenterImage();
         setImageMatrix(matrix);

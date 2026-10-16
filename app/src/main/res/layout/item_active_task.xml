@@ -195,76 +195,15 @@
                 android:textSize="11sp" />
         </LinearLayout>
 
-        <!-- Result Controls (Visible on completion) -->
+        <!-- Danh sách từng ảnh riêng biệt (Đầy đủ kích thước, hỗ trợ zoom 2 ngón tay trực tiếp) -->
         <LinearLayout
-            android:id="@+id/layoutTaskResult"
+            android:id="@+id/layoutTaskImagesFeed"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <ImageView
-                android:id="@+id/ivTaskThumbnail"
-                android:layout_width="60dp"
-                android:layout_height="60dp"
-                android:layout_marginEnd="10dp"
-                android:background="#161616"
-                android:scaleType="centerCrop" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:id="@+id/btnTaskZoom"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@drawable/bg_cyber_chip_normal"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:orientation="horizontal"
-                    android:paddingVertical="6dp">
-
-                    <ImageView
-                        android:layout_width="14dp"
-                        android:layout_height="14dp"
-                        android:layout_marginEnd="4dp"
-                        android:src="@drawable/ic_zoom_in" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Xem Phóng To"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:id="@+id/btnTaskApply"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:background="@drawable/bg_cyber_btn_secondary"
-                    android:clickable="true"
-                    android:focusable="true"
-                    android:gravity="center"
-                    android:orientation="horizontal"
-                    android:paddingVertical="6dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Đưa Lên Màn Chính"
-                        android:textColor="#81C784"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
+            android:clipChildren="true"
+            android:clipToPadding="true"
+            android:orientation="vertical"
+            android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>
